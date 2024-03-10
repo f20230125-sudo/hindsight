@@ -2,27 +2,30 @@ import { expect, test } from "@playwright/test";
 import { AUDIT_PATH, CUT_AUDIT_PATH, detail, openRun, openRuns, runsTable, timeline } from "./helpers";
 
 test.describe("the list of runs", () => {
-  test("shows the runs with their figures, and says the recorded copy is being used", async ({ page }) => {
+  test("shows the runs of every app with their figures, and says which are recordings", async ({ page }) => {
     await openRuns(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("What your agents did, after the fact");
 
+    // The bot's 54 runs and 17 recorded runs of the other three apps.
     const figures = page.getByRole("region", { name: "Figures for the runs shown" });
-    await expect(figures.getByText("54", { exact: true })).toBeVisible();
-    await expect(figures.getByText("100%")).toBeVisible();
+    await expect(figures.getByText("71", { exact: true })).toBeVisible();
+    await expect(figures.getByText("Used a model")).toBeVisible();
 
     // The test server has no way to reach GitHub, and the page says so rather than showing the copy as live.
     const origin = page.getByRole("region", { name: "Where the runs come from" });
     await expect(origin).toContainText("GitHub bot");
     await expect(origin).toContainText("GitHub could not be reached");
-    await expect(origin).toContainText("recorded on");
+    await expect(origin).toContainText("Sayso11 recorded runs");
+    await expect(origin).toContainText("Flowboard5 recorded runs");
+    await expect(origin).toContainText("Agent Desk1 recorded run");
 
     // Twenty-five at first, and the rest on request.
     await expect(runsTable(page).getByRole("row")).toHaveCount(26);
-    await expect(page.getByText("Showing 25 of 54")).toBeVisible();
+    await expect(page.getByText("Showing 25 of 71")).toBeVisible();
     await page.getByRole("button", { name: "Show 25 more" }).click();
     await expect(runsTable(page).getByRole("row")).toHaveCount(51);
-    await page.getByRole("button", { name: "Show 4 more" }).click();
-    await expect(page.getByText("Showing 54 of 54")).toBeVisible();
+    await page.getByRole("button", { name: "Show 21 more" }).click();
+    await expect(page.getByText("Showing 71 of 71")).toBeVisible();
   });
 
   test("filters by agent, keeps the choice in the address, and clears it", async ({ page }) => {
@@ -46,24 +49,40 @@ test.describe("the list of runs", () => {
     await openRuns(page);
     await page.getByRole("searchbox", { name: "Search the runs" }).fill("audit");
     await expect(page).toHaveURL(/\?q=audit$/);
-    await expect(page.getByText("Showing 25 of 25")).toBeVisible();
+    // The bot's 25 audits and the desk's own.
+    await expect(page.getByText("Showing 25 of 26")).toBeVisible();
 
     await page.getByRole("searchbox", { name: "Search the runs" }).fill("zzzz nothing like this");
     await expect(page.getByRole("heading", { name: "No run matches these filters" })).toBeVisible();
   });
 
-  test("says which apps have no runs yet, and turns a filter on for an app that has some", async ({ page }) => {
+  test("filters by app, and shows the recorded runs of the app that was chosen", async ({ page }) => {
     await openRuns(page);
-    await expect(page.getByRole("button", { name: /^Sayso 0$/ })).toBeVisible();
-    await page.getByRole("button", { name: /^GitHub bot 54$/ }).click();
-    await expect(page).toHaveURL(/\?source=github-bot$/);
+    await expect(page.getByRole("button", { name: /^Sayso 11$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Flowboard 5$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Agent Desk 1$/ })).toBeVisible();
+
+    await page.getByRole("button", { name: /^Sayso 11$/ }).click();
+    await expect(page).toHaveURL(/\?source=sayso$/);
+    await expect(page.getByText("Showing 11 of 11")).toBeVisible();
+    // A recording says so beside its name, so it is never taken for a run that just happened.
+    await expect(runsTable(page).getByText("recorded", { exact: true }).first()).toBeVisible();
+    await expect(runsTable(page).getByRole("link", { name: "a window seat on my London flight" }).first()).toBeVisible();
+  });
+
+  test("filters by how a run ended", async ({ page }) => {
+    await openRuns(page, "?status=failed");
+    // Sayso's failed call and its words that were not understood, and Flowboard's weather service being down.
+    await expect(page.getByText("Showing 3 of 3")).toBeVisible();
+    await openRuns(page, "?status=stopped");
+    await expect(page.getByText("Showing 2 of 2")).toBeVisible();
   });
 
   test("shows an error with a way to try again when the runs cannot be read", async ({ page }) => {
     await page.route("**/api/runs/github-bot", (route) => route.fulfill({ status: 500, json: {} }));
     await page.goto("/");
     // Next.js keeps an alert of its own for announcing page changes, so ours is picked by its words.
-    await expect(page.getByRole("alert").filter({ hasText: "could not be read" })).toContainText("GitHub bot could not be read");
+    await expect(page.getByRole("alert").filter({ hasText: "could not be read" })).toContainText("The GitHub bot's runs could not be read");
 
     await page.unroute("**/api/runs/github-bot");
     await page.getByRole("button", { name: "Try again" }).click();
@@ -75,7 +94,8 @@ test.describe("one run", () => {
   test("opens from the list and shows the run's figures", async ({ page }) => {
     await openRuns(page);
     await runsTable(page).getByRole("link", { name: "Audit repositories" }).first().click();
-    await expect(page).toHaveURL(/\/runs\/github-bot%3Aaudit-/);
+    // The newest audit is the desk's own recorded one; the bot's are older.
+    await expect(page).toHaveURL(/\/runs\/(agent-desk|github-bot)%3Aaudit-/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Audit repositories");
     await expect(timeline(page)).toBeVisible();
   });

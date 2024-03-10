@@ -1,14 +1,16 @@
 "use client";
 
 import { CircleAlert } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { StatTile } from "@/components/StatTile";
 import { useNow } from "@/components/useNow";
 import { summarise } from "@/stats/summary";
+import { waysOf } from "@/stats/ways";
 import { useRuns } from "@/store/useRuns";
 import { applyFilters, filtersFromParams, hasFilters, paramsFromFilters, type Filters } from "@/trace/filters";
-import { formatAgo, formatMs, plural } from "@/trace/format";
+import { formatAgo, formatDate, formatMs, plural } from "@/trace/format";
 import { SOURCES, SOURCE_LABELS, TRACE_STATUSES, type SourceName, type TraceStatus } from "@/trace/schema";
 import { FilterBar } from "./FilterBar";
 import { RunTable } from "./RunTable";
@@ -47,6 +49,7 @@ export function RunsView() {
   );
 
   const counts = useMemo(() => countsOf(traces), [traces]);
+  const ways = useMemo(() => waysOf(traces), [traces]);
   const matching = useMemo(() => applyFilters(traces, filters), [traces, filters]);
   const summary = useMemo(() => summarise(matching), [matching]);
   const visible = matching.slice(0, shownCount);
@@ -61,21 +64,44 @@ export function RunsView() {
         </p>
       </header>
 
-      <section aria-label="Where the runs come from" className="flex flex-col gap-2 text-[13px]">
-        {origins.map((origin) => (
-          <p key={origin.source} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted">
-            <span className={`inline-block h-2 w-2 rounded-full ${origin.how === "live" ? "bg-ok" : origin.how === "sample" ? "bg-warn" : "bg-line-strong"}`} aria-hidden="true" />
-            <span className="font-medium text-fg">{SOURCE_LABELS[origin.source]}</span>
-            {origin.how === "live" && origin.at ? <span>read live {formatAgo(origin.at, now)}</span> : null}
-            {origin.how === "sample" ? <span>{origin.note}</span> : null}
-            {origin.how === null && loading ? <span>reading…</span> : null}
-          </p>
-        ))}
+      <section aria-label="Where the runs come from" className="flex flex-col gap-3">
+        <ul className="grid gap-x-8 gap-y-2 text-[13px] sm:grid-cols-2">
+          {origins.map((origin) => {
+            const way = ways[origin.source];
+            const mine = way.sent + way.file;
+            return (
+              <li key={origin.source} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-muted">
+                <span
+                  className={`inline-block h-2 w-2 shrink-0 translate-y-[-1px] rounded-full ${way.live > 0 ? "bg-ok" : way.recorded + mine > 0 ? "bg-warn" : "bg-line-strong"}`}
+                  aria-hidden="true"
+                />
+                <span className="font-medium text-fg">{SOURCE_LABELS[origin.source]}</span>
+                <span>
+                  {way.live > 0 && origin.at ? `${plural(way.live, "run")}, read live ${formatAgo(origin.at, now)}` : null}
+                  {way.live === 0 && origin.source === "github-bot" && origin.how === "sample" ? `${plural(way.recorded, "run")} from a recording` : null}
+                  {origin.source !== "github-bot" && way.recorded > 0 && origin.at ? `${plural(way.recorded, "recorded run")} (${formatDate(origin.at)})` : null}
+                  {mine > 0 ? `${origin.source !== "github-bot" && way.recorded > 0 ? ", " : ""}${mine} sent to you` : null}
+                  {way.live + way.recorded + mine === 0 ? (loading ? "reading…" : "no runs yet") : null}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+        {origins.find((origin) => origin.source === "github-bot")?.note ? (
+          <p className="max-w-[80ch] text-[13px] text-muted">{origins.find((origin) => origin.source === "github-bot")?.note}</p>
+        ) : null}
+        <p className="text-[13px] text-faint">
+          Runs of Sayso, Flowboard and Agent Desk are recordings until you send one: press <span className="font-medium text-muted">Open in Hindsight</span> in the app, or see{" "}
+          <Link href="/sources" className="text-accent underline underline-offset-2">
+            how each app is connected
+          </Link>
+          .
+        </p>
         {errors.map((error) => (
-          <div key={error.source} role="alert" className="panel flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[14px]">
+          <div key={error.what} role="alert" className="panel flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[14px]">
             <span className="flex items-center gap-2">
               <CircleAlert size={16} className="shrink-0 text-bad" aria-hidden="true" />
-              {SOURCE_LABELS[error.source]} could not be read: {error.message}
+              {error.what} could not be read: {error.message}
             </span>
             <button type="button" onClick={retry} className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium hover:bg-surface-2">
               Try again
