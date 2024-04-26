@@ -2,13 +2,10 @@
 
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
 import { useNow } from "@/components/useNow";
 import { SourceChip, StatusBadge, Tag } from "@/components/Chips";
 import { StatTile } from "@/components/StatTile";
-import { Legend } from "@/components/timeline/Legend";
-import { SpanDetail } from "@/components/timeline/SpanDetail";
-import { Timeline } from "@/components/timeline/Timeline";
+import { RunExplorer } from "@/components/timeline/RunExplorer";
 import { useRuns } from "@/store/useRuns";
 import { formatDateTime, formatMs, plural } from "@/trace/format";
 import { originText } from "@/trace/origin";
@@ -24,7 +21,6 @@ function BackLink() {
 }
 
 function Detail({ trace }: { trace: Trace }) {
-  const [selected, setSelected] = useState<string[]>([]);
   const now = useNow();
   const { totals } = trace;
 
@@ -52,24 +48,7 @@ function Detail({ trace }: { trace: Trace }) {
         <StatTile label="Calls avoided" value={totals.avoided === null ? "—" : String(totals.avoided)} note={totals.avoided === null ? "Not reported by this app" : "skipped, as nothing had changed"} />
       </section>
 
-      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="panel p-4 sm:p-5" aria-labelledby="timeline-heading">
-          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <h2 id="timeline-heading" className="text-[15px] font-semibold">
-              Timeline
-            </h2>
-            <span className="text-[12px] text-faint">{plural(trace.spans.length, "span")} recorded</span>
-          </div>
-          <Legend />
-          <div className="mt-4">
-            <Timeline trace={trace} selected={selected} onSelect={setSelected} />
-          </div>
-        </section>
-
-        <aside aria-label="Selected span" className="lg:sticky lg:top-20">
-          <SpanDetail trace={trace} selected={selected} onSelect={setSelected} />
-        </aside>
-      </div>
+      <RunExplorer trace={trace} />
     </div>
   );
 }

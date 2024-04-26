@@ -6,6 +6,10 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: true,
+  // One server answers every test, and it runs on one thread. Many more workers than this and its answers
+  // come late enough to fail a test that waits five seconds, though nothing is wrong.
+  workers: process.env.CI ? 2 : 6,
+  expect: { timeout: 10_000 },
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
