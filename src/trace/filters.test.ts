@@ -13,7 +13,7 @@ const ids = (list: typeof traces) => list.map((trace) => trace.id);
 describe("filtersFromParams and paramsFromFilters", () => {
   it("reads lists, trims the search, and drops what it does not know", () => {
     const params = new URLSearchParams("source=sayso,excel,flowboard&status=failed,nonsense&agent=patch&q=%20seat%20");
-    expect(filtersFromParams(params)).toEqual({ sources: ["sayso", "flowboard"], agents: ["patch"], statuses: ["failed"], q: "seat" });
+    expect(filtersFromParams(params)).toEqual({ sources: ["sayso", "flowboard"], agents: ["patch"], statuses: ["failed"], day: null, q: "seat" });
   });
 
   it("reads an empty address as no filters", () => {
@@ -22,9 +22,9 @@ describe("filtersFromParams and paramsFromFilters", () => {
   });
 
   it("writes only the filters that are on, and reads back what it wrote", () => {
-    const filters = { sources: ["sayso" as const, "github-bot" as const], agents: [], statuses: ["failed" as const], q: "heat check" };
+    const filters = { sources: ["sayso" as const, "github-bot" as const], agents: [], statuses: ["failed" as const], day: "2026-10-06", q: "heat check" };
     const text = paramsFromFilters(filters).toString();
-    expect(text).toBe("source=sayso%2Cgithub-bot&status=failed&q=heat+check");
+    expect(text).toBe("source=sayso%2Cgithub-bot&status=failed&day=2026-10-06&q=heat+check");
     expect(filtersFromParams(new URLSearchParams(text))).toEqual(filters);
     expect(paramsFromFilters(NO_FILTERS).toString()).toBe("");
     expect(hasFilters(filters)).toBe(true);
@@ -48,6 +48,22 @@ describe("applyFilters", () => {
     expect(ids(applyFilters(traces, { ...NO_FILTERS, q: "pitch notes" }))).toEqual(["github-bot:d"]);
     expect(ids(applyFilters(traces, { ...NO_FILTERS, q: "github-bot:c" }))).toEqual(["github-bot:c"]);
     expect(applyFilters(traces, { ...NO_FILTERS, q: "window weather" })).toEqual([]);
+  });
+});
+
+describe("the day filter", () => {
+  it("keeps the runs that began on a day, where the viewer is, and reads only a day that looks like one", () => {
+    const day = [
+      makeTrace({ id: "early", startedAt: "2026-10-06T21:30:00.000Z" }),
+      makeTrace({ id: "late", startedAt: "2026-10-07T10:00:00.000Z" }),
+      makeTrace({ id: "other", startedAt: "2026-10-05T10:00:00.000Z" }),
+      makeTrace({ id: "none", startedAt: null }),
+    ];
+    // These tests run on Dubai time: 21:30 UTC on the 6th is 01:30 on the 7th.
+    expect(ids(applyFilters(day, { ...NO_FILTERS, day: "2026-10-07" }))).toEqual(["early", "late"]);
+    expect(filtersFromParams(new URLSearchParams("day=2026-10-07")).day).toBe("2026-10-07");
+    expect(filtersFromParams(new URLSearchParams("day=yesterday")).day).toBeNull();
+    expect(hasFilters({ ...NO_FILTERS, day: "2026-10-07" })).toBe(true);
   });
 });
 

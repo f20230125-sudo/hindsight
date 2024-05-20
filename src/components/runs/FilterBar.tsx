@@ -4,7 +4,8 @@ import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { SOURCE_ICONS } from "@/components/timeline/kinds";
 import { TRACE_STATUS_LABELS } from "@/timeline/look";
-import { hasFilters, toggled, type Filters } from "@/trace/filters";
+import { NO_FILTERS, hasFilters, toggled, type Filters } from "@/trace/filters";
+import { formatDate } from "@/trace/format";
 import { SOURCES, SOURCE_LABELS, TRACE_STATUSES, type SourceName, type TraceStatus } from "@/trace/schema";
 
 type Counts = {
@@ -92,6 +93,15 @@ export function FilterBar({ filters, counts, onChange }: Props) {
             </Chip>
           ))}
         </Group>
+        {filters.day ? (
+          <Group label="Day">
+            <Chip pressed empty={false} onClick={() => onChange({ ...filters, day: null })}>
+              {formatDate(`${filters.day}T12:00:00`)}
+              <X size={13} aria-hidden="true" />
+              <span className="sr-only">Remove this filter</span>
+            </Chip>
+          </Group>
+        ) : null}
         {agents.length > 0 ? (
           <Group label="Agent">
             {agents.map((agent) => (
@@ -121,7 +131,7 @@ export function FilterBar({ filters, counts, onChange }: Props) {
             type="button"
             onClick={() => {
               setText("");
-              onChange({ sources: [], agents: [], statuses: [], q: "" });
+              onChange(NO_FILTERS);
             }}
             className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted hover:bg-surface-2 hover:text-fg"
           >

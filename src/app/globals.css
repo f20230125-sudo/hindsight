@@ -34,6 +34,10 @@
   --viz-call: #eb6834;
   --viz-wait: #1baf7a;
   --viz-own: #8a929e;
+  /* How a run ended, in a chart. Fixed: the same in both themes, always with a word and a shape beside them. */
+  --viz-good: #0ca30c;
+  --viz-warning: #fab219;
+  --viz-critical: #d03b3b;
   --shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 12px rgb(16 24 40 / 0.06);
   --shadow-lift: 0 1px 2px rgb(16 24 40 / 0.06), 0 12px 32px rgb(16 24 40 / 0.1);
 
@@ -60,6 +64,9 @@
   --viz-call: #d95926;
   --viz-wait: #199e70;
   --viz-own: #6b7480;
+  --viz-good: #0ca30c;
+  --viz-warning: #fab219;
+  --viz-critical: #d03b3b;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px rgb(0 0 0 / 0.35);
   --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.5);
 
@@ -86,6 +93,9 @@
   --color-viz-call: var(--viz-call);
   --color-viz-wait: var(--viz-wait);
   --color-viz-own: var(--viz-own);
+  --color-viz-good: var(--viz-good);
+  --color-viz-warning: var(--viz-warning);
+  --color-viz-critical: var(--viz-critical);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --shadow-panel: var(--shadow);

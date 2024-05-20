@@ -1,3 +1,4 @@
+import { dayOf } from "@/stats/days";
 import { SOURCES, TRACE_STATUSES, type SourceName, type Trace, type TraceStatus } from "./schema";
 
 // Which runs the list shows. The choice lives in the address, so any view of
@@ -7,11 +8,13 @@ export type Filters = {
   sources: SourceName[];
   agents: string[];
   statuses: TraceStatus[];
+  /** The day a run began, where the viewer is, as "2026-10-07". Null for any day. */
+  day: string | null;
   /** Words to find in the title, the summary, the agent or the id. */
   q: string;
 };
 
-export const NO_FILTERS: Filters = { sources: [], agents: [], statuses: [], q: "" };
+export const NO_FILTERS: Filters = { sources: [], agents: [], statuses: [], day: null, q: "" };
 
 type Params = { get(name: string): string | null };
 
@@ -23,6 +26,7 @@ export function filtersFromParams(params: Params): Filters {
     sources: listOf(params.get("source")).filter((name): name is SourceName => (SOURCES as readonly string[]).includes(name)),
     agents: listOf(params.get("agent")),
     statuses: listOf(params.get("status")).filter((name): name is TraceStatus => (TRACE_STATUSES as readonly string[]).includes(name)),
+    day: /^\d{4}-\d{2}-\d{2}$/.test(params.get("day") ?? "") ? params.get("day") : null,
     q: (params.get("q") ?? "").trim(),
   };
 }
@@ -33,12 +37,13 @@ export function paramsFromFilters(filters: Filters): URLSearchParams {
   if (filters.sources.length > 0) params.set("source", filters.sources.join(","));
   if (filters.agents.length > 0) params.set("agent", filters.agents.join(","));
   if (filters.statuses.length > 0) params.set("status", filters.statuses.join(","));
+  if (filters.day) params.set("day", filters.day);
   if (filters.q.trim() !== "") params.set("q", filters.q.trim());
   return params;
 }
 
 export function hasFilters(filters: Filters): boolean {
-  return filters.sources.length > 0 || filters.agents.length > 0 || filters.statuses.length > 0 || filters.q !== "";
+  return filters.sources.length > 0 || filters.agents.length > 0 || filters.statuses.length > 0 || filters.day !== null || filters.q !== "";
 }
 
 /** Runs that pass every filter that is on. Within one filter, any choice will do. */
@@ -48,6 +53,7 @@ export function applyFilters(traces: Trace[], filters: Filters): Trace[] {
     if (filters.sources.length > 0 && !filters.sources.includes(trace.source)) return false;
     if (filters.agents.length > 0 && !(trace.agent !== null && filters.agents.includes(trace.agent))) return false;
     if (filters.statuses.length > 0 && !filters.statuses.includes(trace.status)) return false;
+    if (filters.day !== null && dayOf(trace.startedAt) !== filters.day) return false;
     if (words.length === 0) return true;
     const haystack = `${trace.title} ${trace.summary ?? ""} ${trace.agent ?? ""} ${trace.id}`.toLowerCase();
     return words.every((word) => haystack.includes(word));
