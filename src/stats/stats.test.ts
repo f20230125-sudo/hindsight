@@ -102,6 +102,26 @@ describe("dayOf and byDay", () => {
     const days = byDay([makeTrace({ id: "a", startedAt: "2026-09-29T08:00:00.000Z" }), makeTrace({ id: "b", startedAt: "2026-10-02T08:00:00.000Z" })]);
     expect(days.map((day) => day.day)).toEqual(["2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02"]);
   });
+
+  it("does not count every day between, when one run is dated far from the rest", () => {
+    const traces = [
+      makeTrace({ id: "old", startedAt: "1001-01-01T08:00:00.000Z" }),
+      makeTrace({ id: "now", startedAt: "2026-10-07T08:00:00.000Z" }),
+      makeTrace({ id: "far", startedAt: "9999-06-01T08:00:00.000Z" }),
+      // A year that is not four digits is no day at all.
+      makeTrace({ id: "endless", startedAt: "+275000-01-01T00:00:00.000Z" }),
+      makeTrace({ id: "ancient", startedAt: "0050-01-01T00:00:00.000Z" }),
+    ];
+    const began = performance.now();
+    const days = byDay(traces);
+    // Three million days lie between the first and the last. Only the latest are walked.
+    expect(performance.now() - began).toBeLessThan(200);
+    expect(days).toHaveLength(21);
+    expect(days.at(-1)).toMatchObject({ day: "9999-06-01", total: 1 });
+    expect(days[0].day).toBe("9999-05-12");
+    expect(dayOf("+275000-01-01T00:00:00.000Z")).toBeNull();
+    expect(dayOf("0050-01-01T00:00:00.000Z")).toBeNull();
+  });
 });
 
 describe("slowestSteps", () => {

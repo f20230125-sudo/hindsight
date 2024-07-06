@@ -3,7 +3,7 @@
 import { CircleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { CATEGORY_FILL, CATEGORY_OF, KIND_LABELS, SPAN_STATUS_LABELS } from "@/timeline/look";
-import { clusterMarkers, layoutOf, type Cluster } from "@/timeline/rows";
+import { clusterMarkers, layoutOf, placeOn, type Cluster } from "@/timeline/rows";
 import { axisTicks, type Scale } from "@/timeline/scale";
 import { formatMs, formatOffset, formatTick } from "@/trace/format";
 import type { Span, Trace } from "@/trace/schema";
@@ -210,22 +210,21 @@ export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhea
   }, [layout, scale, width]);
 
   // Where the arrow keys are. One button in the whole timeline is in the tab order: this one.
+  // A row with nothing on show (the track is zoomed in on another part of the
+  // run) cannot be stood on, so the keys pass over it, and there is always a
+  // place in the tab order while anything at all is on show.
   const [cursor, setCursor] = useState({ row: 0, col: 0 });
   const itemsOf = (row: RowModel) => (row.bar ? 1 : 0) + row.marks.length;
-  const place = (row: number, col: number) => {
-    const r = Math.max(0, Math.min(model.length - 1, row));
-    const count = model[r] ? itemsOf(model[r]) : 0;
-    return { row: r, col: Math.max(0, Math.min(Math.max(0, count - 1), col)) };
-  };
-  const at = place(cursor.row, cursor.col);
+  const counts = model.map(itemsOf);
+  const at = placeOn(counts, cursor.row, cursor.col);
   const roving = (row: number, col: number): Roving => ({
     item: `${row}-${col}`,
     tabIndex: at.row === row && at.col === col ? 0 : -1,
     onFocus: () => setCursor({ row, col }),
   });
 
-  const move = (next: { row: number; col: number }) => {
-    const target = place(next.row, next.col);
+  const move = (next: { row: number; col: number }, direction: 1 | -1 = 1) => {
+    const target = placeOn(counts, next.row, next.col, direction);
     setCursor(target);
     listRef.current?.querySelector<HTMLElement>(`[data-item="${target.row}-${target.col}"]`)?.focus();
   };
@@ -242,16 +241,16 @@ export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhea
         move({ row: at.row, col: at.col - 1 });
         break;
       case "ArrowDown":
-        move({ row: at.row + 1, col: at.col });
+        move({ row: at.row + 1, col: at.col }, 1);
         break;
       case "ArrowUp":
-        move({ row: at.row - 1, col: at.col });
+        move({ row: at.row - 1, col: at.col }, -1);
         break;
       case "Home":
         move(event.ctrlKey ? { row: 0, col: 0 } : { row: at.row, col: 0 });
         break;
       case "End":
-        move(event.ctrlKey ? { row: model.length - 1, col: 0 } : { row: at.row, col: last });
+        move(event.ctrlKey ? { row: model.length - 1, col: 0 } : { row: at.row, col: last }, event.ctrlKey ? -1 : 1);
         break;
       case "Escape":
         onSelect([]);

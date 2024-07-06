@@ -22,6 +22,9 @@ type Options = { origin: Origin };
 
 const clip = (text: string, length: number) => (text.length > length ? `${text.slice(0, length - 1)}…` : text);
 
+/** The log is to the millisecond and a call is timed apart from it, so a call may seem a few ms longer than the try it was part of. */
+const CALL_SLACK_MS = 5;
+
 /** "/api/flights/JN203_2026-10-15/seats?x=1" is "/api/flights/JN203_2026-10-15/seats" for a name. */
 const pathOnly = (url: string) => (url.includes("?") ? url.slice(0, url.indexOf("?")) : url);
 
@@ -73,10 +76,16 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
 
   const exported = run.exportedAt ? Date.parse(run.exportedAt) - t0 : Number.NaN;
   const lastLogged = run.log.reduce((latest, entry) => Math.max(latest, rel(entry.at)), 0);
-  let durationMs = Math.max(Math.round(run.understoodMs), lastLogged);
+  // A turn kept before Sayso noted when things happened has no log. All that is
+  // known of its calls is how long each took, so they are laid end to end.
+  const unlogged = run.log.length === 0;
+  const laidOut = unlogged ? run.calls.reduce((total, call) => total + Math.round(call.ms), Math.round(run.understoodMs)) : 0;
+  let durationMs = Math.max(Math.round(run.understoodMs), lastLogged, laidOut);
   // A journey that is still waiting has been waiting until the moment it was written out.
+  // (Only a turn that says when it began, or when anything in it happened, can be measured against that moment.)
   const open = run.status === "waiting" || run.status === "running";
-  if (open && Number.isFinite(exported)) durationMs = Math.max(durationMs, Math.round(exported));
+  const placed = Number.isFinite(began) || !unlogged;
+  if (open && placed && Number.isFinite(exported)) durationMs = Math.max(durationMs, Math.round(exported));
 
   const spans: Span[] = [];
   const counts = new Map<string, number>();
@@ -86,8 +95,9 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
     return `${kind}-${next}`;
   };
   const add = (span: Omit<Span, "id" | "parentId" | "timing" | "attributes"> & { idKind: string; attributes?: Span["attributes"]; timing?: Span["timing"] }) => {
-    const { idKind, attributes, timing, ...rest } = span;
-    spans.push({ id: idFor(idKind), parentId: null, timing: timing ?? "measured", attributes: attributes ?? {}, ...rest });
+    const { idKind, attributes, timing, name, shown, ...rest } = span;
+    // Names and lines come from the app as they are; a very long one is cut, not a reason to refuse the run.
+    spans.push({ id: idFor(idKind), parentId: null, timing: timing ?? "measured", attributes: attributes ?? {}, name: clip(name, 500), ...(shown ? { shown: clip(shown, 2000) } : {}), ...rest });
   };
   const marker = (idKind: string, kind: SpanKind, name: string, at: number, shown?: string, status: SpanStatus = "ok", attributes?: Span["attributes"]) =>
     add({ idKind, kind, name: clip(name, 200), startMs: at, durationMs: 0, status, ...(shown ? { shown: clip(shown, 2000) } : {}), attributes });
@@ -124,13 +134,26 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
   let failedAt: number | null = null;
   let markIndex = 0;
 
-  const finishCall = (stepId: string, at: number, failedHere: boolean) => {
+  // Sayso keeps the reason for the failure a run is left with, and no earlier one.
+  const lastFailure = run.status === "failed" ? run.log.findLastIndex((entry) => entry.type === "failed") : -1;
+
+  const finishCall = (stepId: string, at: number, failedHere: boolean, reason: SaysoRun["failure"] = null) => {
     const started = startedCalls.get(stepId)?.shift();
-    const call = callsByStep.get(stepId)?.shift();
-    const step = stepById.get(stepId);
     if (started === undefined) return;
+    const step = stepById.get(stepId);
+    // Sayso keeps a record of every call that got an answer, good or bad. A try
+    // that failed with no answer at all (no connection, or arguments the plan
+    // got wrong) has none, so the next record of this step may belong to a
+    // later try. It is this try's only if it ended the same way, and, for a
+    // failure, took no longer than this try did.
+    const queue = callsByStep.get(stepId) ?? [];
+    const next = queue[0];
+    const fits = next !== undefined && (next.failure !== null) === failedHere && (!failedHere || next.ms <= at - started + CALL_SLACK_MS);
+    const call = fits ? queue.shift() : undefined;
     const failed = failedHere || Boolean(call?.failure) || (call !== undefined && call.status >= 400);
-    const attributes = call ? toRecord({ tool: call.tool, method: call.method, url: call.url, status: call.status, ms: call.ms, failure: call.failure }) : toRecord({ tool: step?.tool });
+    const attributes = call
+      ? toRecord({ tool: call.tool, method: call.method, url: call.url, status: call.status, ms: call.ms, failure: call.failure })
+      : toRecord({ tool: step?.tool, ...(failedHere ? { answered: false, failure: reason ? { code: reason.code, message: reason.message } : null } : {}) });
     add({
       idKind: "call",
       kind: "tool",
@@ -161,7 +184,7 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
     });
   };
 
-  for (const entry of run.log) {
+  for (const [index, entry] of run.log.entries()) {
     const at = rel(entry.at);
     const step = entry.stepId ? stepById.get(entry.stepId) : undefined;
     switch (entry.type) {
@@ -179,13 +202,15 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
       case "tool-finished":
         if (entry.stepId) finishCall(entry.stepId, at, false);
         break;
-      case "failed":
+      case "failed": {
         if (entry.stepId) {
-          if (startedCalls.get(entry.stepId)?.length) finishCall(entry.stepId, at, true);
-          else marker("failure", "step", run.failure?.message ?? "Something went wrong", at, undefined, "failed");
+          const reason = index === lastFailure && run.failure?.stepId === entry.stepId ? run.failure : null;
+          if (startedCalls.get(entry.stepId)?.length) finishCall(entry.stepId, at, true, reason);
+          else marker("failure", "step", reason?.message ?? "Something went wrong", at, undefined, "failed");
         }
         failedAt = at;
         break;
+      }
       case "resumed":
         // The traveller was shown the failure and pressed "Try again": the run was waiting for them.
         if (failedAt !== null) {
@@ -228,7 +253,8 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
         // The journey was left. Whatever was waiting for the traveller stops here.
         for (const [stepId, from] of shownAt) closeWait(stepId, from, at, "stopped");
         shownAt.clear();
-        if (run.closing) marker("closing", "said", run.closing, at, run.closing);
+        // The closing line is said when the journey is closed. A run stopped first and closed later says it once, then.
+        if (run.closing && entry.type === "closed") marker("closing", "said", run.closing, at, run.closing);
         break;
       default:
         // finished, and anything a newer Sayso adds.
@@ -239,6 +265,31 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
   // Components still waiting for an answer have been waiting until the end.
   for (const [stepId, from] of shownAt) closeWait(stepId, from, durationMs, "ok", undefined, open);
 
+  // 3b. A turn with no log: its calls one after another from the end of the reading, and its checks at the end.
+  if (unlogged) {
+    const note = "This turn was kept before Sayso noted when things happened. Only how long each call took is known, so the calls are placed one after another.";
+    let at = Math.round(run.understoodMs);
+    for (const call of run.calls) {
+      const took = Math.round(call.ms);
+      add({
+        idKind: "call",
+        kind: "tool",
+        name: `${call.method} ${pathOnly(call.url)}`,
+        startMs: at,
+        durationMs: took,
+        status: call.failure || call.status >= 400 ? "failed" : "ok",
+        timing: "estimated",
+        attributes: { ...toRecord({ tool: call.tool, method: call.method, url: call.url, status: call.status, ms: call.ms, failure: call.failure }), note },
+        ...(call.body != null ? { input: call.body } : {}),
+        ...(call.result != null ? { output: call.result } : {}),
+      });
+      at += took;
+    }
+    for (const check of run.checks) {
+      add({ idKind: "check", kind: "check", name: clip(check.label, 200), startMs: durationMs, durationMs: 0, status: check.pass ? "ok" : "failed", timing: "estimated", shown: check.label, attributes: { pass: check.pass, note } });
+    }
+  }
+
   // 4. A reply with no run behind it: small talk, or words that were not understood.
   if (run.steps.length === 0 && run.reply) {
     marker("reply", "said", run.reply, Math.min(Math.round(run.understoodMs), durationMs), run.reply, "ok", run.replyBy ? { by: run.replyBy } : undefined);
@@ -248,6 +299,7 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
 
   const modelCalls = (run.brain === "model" ? 1 : 0) + (run.replyBy ? 1 : 0) + run.marks.filter((mark) => mark.by).length;
   const passed = run.checks.filter((check) => check.pass).length;
+  const summary = run.closing ?? run.reply ?? (run.checks.length > 0 ? `${passed} of ${run.checks.length} checks passed` : null);
   const status: TraceStatus = run.status ? STATUS[run.status] : unreadable ? "failed" : "ok";
 
   return {
@@ -255,8 +307,9 @@ export function adaptSayso(run: SaysoRun, { origin }: Options): Trace {
     source: "sayso",
     agent: null,
     title: clip(run.words, 500),
-    summary: run.closing ?? run.reply ?? (run.checks.length > 0 ? `${passed} of ${run.checks.length} checks passed` : null),
-    startedAt: Number.isFinite(began) ? run.startedAt : null,
+    summary: summary === null ? null : clip(summary, 1000),
+    // Written the one way every browser reads back, whatever way the app wrote it.
+    startedAt: Number.isFinite(began) ? new Date(began).toISOString() : null,
     durationMs,
     status,
     spans,

@@ -24,6 +24,9 @@ type Options = { source: "agent-desk" | "github-bot"; origin: Origin };
 /** Stamps are to the millisecond and calls are timed apart, so a few ms of difference is not a cut. */
 const CUT_TOLERANCE_MS = 5;
 
+/** Text from the program as it is; a very long piece is cut, not a reason to leave the run out. */
+const clip = (text: string, length: number) => (text.length > length ? `${text.slice(0, length - 1)}…` : text);
+
 const asText = (value: unknown): string | null => (typeof value === "string" && value.trim() !== "" ? value : null);
 const asNumber = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
@@ -95,12 +98,13 @@ export function adaptDeskRun(detail: DeskRunDetail, { source, origin }: Options)
       id: `event-${event.id}`,
       parentId: parentOf(event),
       kind,
-      name: name.slice(0, 200),
+      name: clip(name, 200),
       startMs: within(stamp(event)),
       durationMs: 0,
       status,
       timing: "measured",
-      ...(shown ? { shown } : {}),
+      // A whole drafted post can be the text of a message.
+      ...(shown ? { shown: clip(shown, 2000) } : {}),
       attributes,
     };
   };
@@ -133,7 +137,7 @@ export function adaptDeskRun(detail: DeskRunDetail, { source, origin }: Options)
           id: `event-${event.id}`,
           parentId: parentOf(event),
           kind: isModel ? "model" : "tool",
-          name,
+          name: clip(name, 300),
           startMs,
           durationMs: cut ? end : Math.min(Math.round(took), durationMs - startMs),
           status: failed ? "failed" : "ok",
@@ -184,10 +188,11 @@ export function adaptDeskRun(detail: DeskRunDetail, { source, origin }: Options)
   return {
     id: `${source}:${run.run_id}`,
     source,
-    agent: run.agent,
-    title: run.title,
-    summary: run.text ?? null,
-    startedAt: run.started_at,
+    agent: clip(run.agent, 100),
+    title: clip(run.title, 500),
+    summary: run.text ? clip(run.text, 1000) : null,
+    // A start the browser cannot read is no start: the run is then placed by its first event.
+    startedAt: Number.isFinite(begun) ? run.started_at : null,
     durationMs,
     status,
     spans,

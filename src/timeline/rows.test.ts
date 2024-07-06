@@ -4,7 +4,7 @@ import sample from "@/samples/github-bot.json";
 import { adaptDeskRun } from "@/sources/agentdesk/adapt";
 import { deskRunDetailSchema } from "@/sources/agentdesk/schema";
 import type { Span, Trace } from "@/trace/schema";
-import { clusterMarkers, layoutOf, percentOf, ticksFor } from "./rows";
+import { clusterMarkers, layoutOf, percentOf, placeOn, ticksFor } from "./rows";
 
 const recorded = z.object({ runs: z.array(deskRunDetailSchema) }).parse(sample).runs;
 const real = (id: string): Trace => {
@@ -133,5 +133,42 @@ describe("the axis", () => {
     expect(percentOf(-5, 1000)).toBe(0);
     expect(percentOf(5000, 1000)).toBe(100);
     expect(percentOf(10, 0)).toBe(0);
+  });
+});
+
+describe("placeOn: where the arrow keys can stand", () => {
+  // How many bars and marks each row has on show. Zoomed in on the middle of
+  // the recorded audit, only the first row and the fourth have anything.
+  const zoomedIn = [1, 0, 0, 1, 0, 0, 0, 0, 0];
+
+  it("stays where it is put when that row has something on show, keeping to the bars and marks it has", () => {
+    expect(placeOn([3, 2, 1], 1, 1)).toEqual({ row: 1, col: 1 });
+    expect(placeOn([3, 2, 1], 1, 7)).toEqual({ row: 1, col: 1 });
+    expect(placeOn([3, 2, 1], 1, -2)).toEqual({ row: 1, col: 0 });
+    expect(placeOn([3, 2, 1], 9, 0)).toEqual({ row: 2, col: 0 });
+    expect(placeOn([3, 2, 1], -4, 0)).toEqual({ row: 0, col: 0 });
+  });
+
+  it("passes over rows with nothing on show, the way the key was going", () => {
+    // Down from the first row lands on the fourth, not on an empty row where nothing could take the focus.
+    expect(placeOn(zoomedIn, 1, 0, 1)).toEqual({ row: 3, col: 0 });
+    // And up from the fourth, on the first.
+    expect(placeOn(zoomedIn, 2, 0, -1)).toEqual({ row: 0, col: 0 });
+  });
+
+  it("stays put when there is nothing further that way", () => {
+    expect(placeOn(zoomedIn, 4, 0, 1)).toEqual({ row: 3, col: 0 });
+    expect(placeOn([0, 0, 1, 1], 1, 0, -1)).toEqual({ row: 2, col: 0 });
+  });
+
+  it("finds somewhere to stand when the row it was on has gone from view", () => {
+    // The first row has nothing on show: the tab order still has a place, on the nearest row that has.
+    expect(placeOn([0, 0, 2, 0], 0, 0)).toEqual({ row: 2, col: 0 });
+    expect(placeOn([0, 0, 2, 0], 3, 5)).toEqual({ row: 2, col: 1 });
+  });
+
+  it("has nowhere to stand when nothing is on show, and says the first row", () => {
+    expect(placeOn([0, 0, 0], 2, 3)).toEqual({ row: 2, col: 0 });
+    expect(placeOn([], 0, 0)).toEqual({ row: 0, col: 0 });
   });
 });
