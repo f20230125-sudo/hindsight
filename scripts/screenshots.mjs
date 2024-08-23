@@ -65,19 +65,27 @@ await shot({ path: "/overview", name: "overview", full: true, height: 900 });
   const panel = (await run.locator('section[aria-labelledby="timeline-heading"]').screenshot()).toString("base64");
   await source.close();
 
-  const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
+  // The card is drawn on one of the site's own pages, so it is set in the site's own face and colours
+  // (Mozilla Headline, ink on grey paper) rather than in a copy of them that could drift.
+  const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1, colorScheme: "light" });
+  await context.addInitScript(() => localStorage.setItem("hindsight:theme", "light"));
   const page = await context.newPage();
-  await page.setContent(`<!doctype html><html><body style="margin:0;width:1200px;height:630px;background:#f4f5f7;color:#14171c;font-family:Geist,ui-sans-serif,system-ui,Segoe UI,sans-serif;display:flex;align-items:center;gap:44px;padding:0 56px;box-sizing:border-box;overflow:hidden">
-    <div style="width:400px;flex:none">
-      <div style="display:flex;align-items:center;gap:12px;font-size:26px;font-weight:600;letter-spacing:-0.01em">
-        <svg width="34" height="34" viewBox="0 0 18 18"><rect x="1" y="2" width="9" height="3.5" rx="1.5" fill="#2a78d6"/><rect x="5" y="7.25" width="7" height="3.5" rx="1.5" fill="#eb6834"/><rect x="9" y="12.5" width="8" height="3.5" rx="1.5" fill="#1baf7a"/></svg>
-        Hindsight
+  await page.goto(`${BASE}/sources`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { level: 1 }).waitFor();
+  await page.evaluate((png) => {
+    document.body.innerHTML = `<div style="box-sizing:border-box;width:1200px;height:630px;background:var(--desk);color:var(--ink);font-family:var(--font-headline),system-ui,sans-serif;display:flex;align-items:center;gap:48px;padding:0 56px;overflow:hidden">
+      <div style="width:400px;flex:none">
+        <div style="display:flex;align-items:center;gap:12px;font-size:26px;font-weight:700;letter-spacing:-0.01em">
+          <svg width="34" height="34" viewBox="0 0 18 18"><rect x="1" y="2" width="9" height="3.5" rx="1.5" fill="#2a78d6"/><rect x="5" y="7.25" width="7" height="3.5" rx="1.5" fill="#eb6834"/><rect x="9" y="12.5" width="8" height="3.5" rx="1.5" fill="#1baf7a"/></svg>
+          Hindsight
+        </div>
+        <div style="margin-top:34px;font-size:54px;line-height:1.06;font-weight:700;letter-spacing:-0.012em;font-variation-settings:'wdth' 92">What your agents did, after the fact</div>
+        <div style="margin-top:22px;font-size:21px;line-height:1.45;color:var(--ink-2)">Every run of four apps on one timeline: what was understood, each call, each wait, each check.</div>
       </div>
-      <div style="margin-top:34px;font-size:50px;line-height:1.08;font-weight:650;letter-spacing:-0.025em">What your agents did, after the fact</div>
-      <div style="margin-top:22px;font-size:21px;line-height:1.45;color:#4a5361">Every run of four apps on one timeline: what was understood, each call, each wait, each check.</div>
-    </div>
-    <img alt="" src="data:image/png;base64,${panel}" style="width:660px;flex:none;border-radius:18px;box-shadow:0 1px 2px rgba(16,24,40,.06),0 16px 40px rgba(16,24,40,.12);border:1px solid #dfe3e8">
-  </body></html>`);
+      <img alt="" src="data:image/png;base64,${png}" style="width:660px;flex:none;border-radius:8px;border:1px solid var(--rule)">
+    </div>`;
+  }, panel);
+  await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(500);
   await page.screenshot({ path: "src/app/opengraph-image.png" });
   await context.close();

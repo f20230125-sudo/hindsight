@@ -1,8 +1,9 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
-import type { Mode } from "@/timeline/scale";
+import { Segmented } from "@/components/Segmented";
 import { IconButton } from "@/components/ui";
+import type { Mode } from "@/timeline/scale";
 
 // What can be changed about how a run is drawn: the clock it is drawn by, how
 // much of it is on show, and whether it is a timeline or a table.
@@ -22,24 +23,11 @@ type Props = {
   onShape: (shape: "timeline" | "table") => void;
 };
 
-function Segmented<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: { value: T; label: string; title?: string; disabled?: boolean }[]; onChange: (value: T) => void }) {
-  return (
-    <div role="group" aria-label={label} className="inline-flex rounded-lg border border-line bg-surface p-0.5">
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type="button"
-          aria-pressed={value === option.value}
-          title={option.title}
-          onClick={() => onChange(option.value)}
-          className={`h-7 rounded-md px-2.5 text-[12.5px] font-medium transition-colors ${value === option.value ? "bg-accent-soft text-accent" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  );
-}
+// A button that has nothing to do right now is dimmed and marked aria-disabled, but it is not
+// disabled: a disabled button cannot be focused, so a key that had just put the run back to
+// the whole of it ("Show all") would leave the keyboard with nowhere to be. It stays where it
+// is, and pressing it does nothing.
+const NOTHING = () => {};
 
 export function Controls({ mode, onMode, hasWaits, zoomed, onZoom, onPan, onReset, onZoomToSelection, shape, onShape }: Props) {
   return (
@@ -61,20 +49,24 @@ export function Controls({ mode, onMode, hasWaits, zoomed, onZoom, onPan, onRese
         <IconButton label="Zoom in" onClick={() => onZoom(0.5)}>
           <ZoomIn size={16} />
         </IconButton>
-        <IconButton label="Zoom out" onClick={() => onZoom(2)} disabled={!zoomed}>
+        <IconButton label="Zoom out" onClick={zoomed ? () => onZoom(2) : NOTHING} aria-disabled={!zoomed}>
           <ZoomOut size={16} />
         </IconButton>
-        <IconButton label="Move earlier" onClick={() => onPan(-0.5)} disabled={!zoomed}>
+        <IconButton label="Move earlier" onClick={zoomed ? () => onPan(-0.5) : NOTHING} aria-disabled={!zoomed}>
           <ChevronLeft size={16} />
         </IconButton>
-        <IconButton label="Move later" onClick={() => onPan(0.5)} disabled={!zoomed}>
+        <IconButton label="Move later" onClick={zoomed ? () => onPan(0.5) : NOTHING} aria-disabled={!zoomed}>
           <ChevronRight size={16} />
         </IconButton>
-        <IconButton label="Show all of the run" onClick={onReset} disabled={!zoomed}>
+        <IconButton label="Show all of the run" onClick={zoomed ? onReset : NOTHING} aria-disabled={!zoomed}>
           <Maximize2 size={15} />
         </IconButton>
         {onZoomToSelection ? (
-          <button type="button" onClick={onZoomToSelection} className="ml-1 h-8 rounded-lg px-2.5 text-[12.5px] font-medium text-accent hover:bg-surface-2">
+          <button
+            type="button"
+            onClick={onZoomToSelection}
+            className="ml-1 h-10 rounded-control px-2.5 text-[12.5px] font-medium text-ink underline underline-offset-2 transition-colors duration-150 hover:bg-paper-2 sm:h-8"
+          >
             Zoom to the chosen one
           </button>
         ) : null}

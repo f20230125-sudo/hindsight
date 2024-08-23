@@ -3,7 +3,9 @@
 import { CircleAlert, CircleCheck, ExternalLink, Trash2, Upload } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { SourceChip, Tag } from "@/components/Chips";
+import { Tag } from "@/components/Chips";
+import { SOURCE_ICONS } from "@/components/timeline/kinds";
+import { Button } from "@/components/ui";
 import { useNow } from "@/components/useNow";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { runsActions } from "@/store/runsSlice";
@@ -63,13 +65,13 @@ function Dropzone({ onFiles }: { onFiles: (files: File[]) => void }) {
         setOver(false);
         onFiles([...event.dataTransfer.files]);
       }}
-      className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl border border-dashed px-5 py-8 text-center transition-colors has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-accent ${
-        over ? "border-accent bg-accent-soft" : "border-line-strong bg-surface hover:bg-surface-2"
+      className={`flex cursor-pointer flex-col items-center gap-1.5 rounded-control border border-dashed px-5 py-8 text-center transition-colors duration-150 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-ink ${
+        over ? "border-ink bg-paper-2" : "border-edge bg-paper hover:bg-paper-2"
       }`}
     >
-      <Upload size={20} className="text-muted" aria-hidden="true" />
+      <Upload size={20} className="text-ink-2" aria-hidden="true" />
       <span className="text-[15px] font-medium">Drop a run file here, or choose one</span>
-      <span className="text-[13px] text-muted">It is read in this browser. Nothing is uploaded.</span>
+      <span className="text-[13px] text-ink-2">It is read in this browser. Nothing is uploaded.</span>
       <input
         type="file"
         accept=".json,application/json"
@@ -81,6 +83,45 @@ function Dropzone({ onFiles }: { onFiles: (files: File[]) => void }) {
         }}
       />
     </label>
+  );
+}
+
+/** A block of the page: its name in the label gutter, its content in the track. */
+function Block({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  return (
+    <section aria-labelledby={id} className="grid gap-x-8 gap-y-3 lg:grid-cols-[var(--gutter)_minmax(0,1fr)]">
+      <h2 id={id} className="text-[18px] font-semibold">
+        {title}
+      </h2>
+      <div className="flex min-w-0 max-w-[78ch] flex-col gap-3">{children}</div>
+    </section>
+  );
+}
+
+const LINK = "inline-flex min-h-7 items-center gap-1.5 text-ink underline underline-offset-2";
+
+function SentRow({ trace, now, onRemove }: { trace: { id: string; title: string; source: SourceName; origin: { how: string; at: string } }; now: number; onRemove: () => void }) {
+  const Icon = SOURCE_ICONS[trace.source];
+  return (
+    <li className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[13px] font-semibold">
+        <Icon size={14} className="shrink-0 text-ink-2" aria-hidden="true" />
+        {SOURCE_LABELS[trace.source]}
+      </span>
+      <Link href={`/runs/${encodeURIComponent(trace.id)}`} className="min-w-0 flex-1 truncate text-[14px] font-medium hover:underline">
+        {trace.title}
+      </Link>
+      <Tag>{trace.origin.how}</Tag>
+      <span className="text-[12.5px] text-ink-3">{formatAgo(trace.origin.at, now)}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove “${trace.title}”`}
+        className="inline-flex h-8 w-8 items-center justify-center rounded-control text-ink-2 transition-colors duration-150 hover:bg-paper-2 hover:text-ink"
+      >
+        <Trash2 size={14} aria-hidden="true" />
+      </button>
+    </li>
   );
 }
 
@@ -120,85 +161,83 @@ export function SourcesView() {
   };
 
   return (
-    <div className="flex flex-col gap-10">
-      <header className="flex max-w-[70ch] flex-col gap-3">
-        <p className="eyebrow">Sources</p>
-        <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">How each app is connected</h1>
-        <p className="text-[15.5px] leading-relaxed text-muted">
+    <div className="flex flex-col gap-12">
+      <header className="flex max-w-[64ch] flex-col gap-2.5">
+        <h1 className="page-title">How each app is connected</h1>
+        <p className="text-[15.5px] leading-relaxed text-ink-2">
           Hindsight reads four apps. One of them it reads on its own. The other three hand a run over when you press a button in them, and until then Hindsight shows runs that were recorded from the real apps.
         </p>
       </header>
 
-      <section aria-label="The apps" className="grid gap-4 md:grid-cols-2">
+      {/* Four ruled rows: the app in the gutter, how it is connected in the track. */}
+      <section aria-label="The apps" className="border-t border-rule">
         {SOURCES.map((source) => {
           const info = APPS[source];
           const way = ways[source];
           const mine = way.sent + way.file;
+          const Icon = SOURCE_ICONS[source];
           return (
-            <article key={source} className="panel flex flex-col gap-3 p-5" aria-labelledby={`app-${source}`}>
-              <div className="flex items-center justify-between gap-3">
-                <h2 id={`app-${source}`} className="sr-only">
+            <article key={source} className="grid gap-x-8 gap-y-2 border-b border-rule py-6 lg:grid-cols-[var(--gutter)_minmax(0,1fr)]" aria-labelledby={`app-${source}`}>
+              <div>
+                <h2 id={`app-${source}`} className="flex items-center gap-2 text-[18px] font-semibold">
+                  <Icon size={16} className="shrink-0 text-ink-2" aria-hidden="true" />
                   {SOURCE_LABELS[source]}
                 </h2>
-                <SourceChip source={source} />
-                <span className="text-[12px] text-faint">
+                <p className="mt-0.5 text-[13px] text-ink-3">
                   {way.live > 0 ? `${plural(way.live, "run")}, read live` : null}
                   {way.live === 0 ? `${plural(way.recorded + mine, "run")}` : null}
-                </span>
+                </p>
               </div>
-              <p className="text-[14px] leading-relaxed text-muted">{info.what}</p>
-              <p className="text-[14px] leading-relaxed">
-                <span className="eyebrow mr-2">How</span>
-                {info.how}
-              </p>
-              <p className="text-[13px] text-faint">
-                {way.recorded > 0 ? `${plural(way.recorded, "recorded run")} until one is sent. ` : null}
-                {mine > 0 ? `${mine} sent to this browser.` : null}
-                {way.live === 0 && way.recorded === 0 && mine === 0 ? "No runs yet." : null}
-              </p>
-              <div className="mt-auto flex flex-wrap gap-x-5 gap-y-1.5 text-[13px]">
-                {info.url ? (
-                  <a href={info.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-accent underline underline-offset-2">
+              <div className="flex max-w-[78ch] flex-col gap-2">
+                <p className="text-[14px] leading-relaxed text-ink-2">{info.what}</p>
+                <p className="text-[14px] leading-relaxed">
+                  <span className="label mr-2">How</span>
+                  {info.how}
+                </p>
+                <p className="text-[13px] text-ink-3">
+                  {way.recorded > 0 ? `${plural(way.recorded, "recorded run")} until one is sent. ` : null}
+                  {mine > 0 ? `${mine} sent to this browser.` : null}
+                  {way.live === 0 && way.recorded === 0 && mine === 0 ? "No runs yet." : null}
+                </p>
+                <div className="mt-1 flex flex-wrap gap-x-5 gap-y-1 text-[13px]">
+                  {info.url ? (
+                    <a href={info.url} target="_blank" rel="noreferrer" className={LINK}>
+                      <ExternalLink size={13} aria-hidden="true" />
+                      Open {SOURCE_LABELS[source]}
+                    </a>
+                  ) : null}
+                  <a href={info.repo} target="_blank" rel="noreferrer" className={LINK}>
                     <ExternalLink size={13} aria-hidden="true" />
-                    Open {SOURCE_LABELS[source]}
+                    Source code
                   </a>
-                ) : null}
-                <a href={info.repo} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-accent underline underline-offset-2">
-                  <ExternalLink size={13} aria-hidden="true" />
-                  Source code
-                </a>
+                </div>
               </div>
             </article>
           );
         })}
       </section>
 
-      <section aria-labelledby="drop-heading" className="flex flex-col gap-4">
-        <div className="max-w-[70ch]">
-          <h2 id="drop-heading" className="text-[20px] font-semibold tracking-tight">
-            Drop a run file
-          </h2>
-          <p className="mt-1.5 text-[14.5px] leading-relaxed text-muted">
-            When Hindsight is not open, or the browser blocks the new tab, an app saves the run as a file instead. Drop it here and it opens like any other.
-          </p>
-        </div>
+      <Block id="drop-heading" title="Drop a run file">
+        <p className="text-[14.5px] leading-relaxed text-ink-2">
+          When Hindsight is not open, or the browser blocks the new tab, an app saves the run as a file instead. Drop it here and it opens like any other.
+        </p>
         <Dropzone onFiles={(files) => void takeFiles(files)} />
         <div role="status" aria-live="polite" aria-label="What became of the files" className="flex flex-col gap-2">
           {outcomes.map((outcome, index) => (
-            <p key={`${outcome.name}-${index}`} className="panel flex items-start gap-2.5 px-4 py-3 text-[14px]">
+            <p key={`${outcome.name}-${index}`} className="flex items-start gap-2.5 text-[14px]">
               {outcome.ok ? (
                 <>
-                  <CircleCheck size={16} className="mt-0.5 shrink-0 text-ok" aria-hidden="true" />
+                  <CircleCheck size={16} className="mt-0.5 shrink-0 text-ink" aria-hidden="true" />
                   <span>
                     <span className="font-medium">{outcome.name}</span> was read.{" "}
-                    <Link href={`/runs/${encodeURIComponent(outcome.id)}`} className="text-accent underline underline-offset-2">
+                    <Link href={`/runs/${encodeURIComponent(outcome.id)}`} className="text-ink underline underline-offset-2">
                       Open “{outcome.title}”
                     </Link>
                   </span>
                 </>
               ) : (
                 <>
-                  <CircleAlert size={16} className="mt-0.5 shrink-0 text-bad" aria-hidden="true" />
+                  <CircleAlert size={16} className="mt-0.5 shrink-0 text-fail" aria-hidden="true" />
                   <span>
                     <span className="font-medium">{outcome.name}</span> was not taken. {outcome.reason}
                   </span>
@@ -207,58 +246,33 @@ export function SourcesView() {
             </p>
           ))}
         </div>
-      </section>
+      </Block>
 
-      <section aria-labelledby="sent-heading" className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 id="sent-heading" className="text-[20px] font-semibold tracking-tight">
-            Runs sent to this browser
-          </h2>
-          {received.length > 0 ? (
-            <button
-              type="button"
-              onClick={() => dispatch(runsActions.receivedCleared())}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[13px] text-muted hover:bg-surface-2 hover:text-fg"
-            >
-              <Trash2 size={13} aria-hidden="true" />
-              Remove all
-            </button>
-          ) : null}
-        </div>
+      <Block id="sent-heading" title="Runs sent to this browser">
         {received.length === 0 ? (
-          <p className="text-[14px] text-muted">None yet. They stay in this browser and nowhere else.</p>
+          <p className="text-[14px] text-ink-2">None yet. They stay in this browser and nowhere else.</p>
         ) : (
-          <ul className="panel divide-y divide-line">
-            {received.map((trace) => (
-              <li key={trace.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3">
-                <SourceChip source={trace.source} />
-                <Link href={`/runs/${encodeURIComponent(trace.id)}`} className="min-w-0 flex-1 truncate text-[14px] font-medium hover:underline">
-                  {trace.title}
-                </Link>
-                <Tag>{trace.origin.how}</Tag>
-                <span className="text-[12px] text-faint">{formatAgo(trace.origin.at, now)}</span>
-                <button
-                  type="button"
-                  onClick={() => dispatch(runsActions.traceRemoved(trace.id))}
-                  aria-label={`Remove “${trace.title}”`}
-                  className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-fg"
-                >
-                  <Trash2 size={14} aria-hidden="true" />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul className="sheet divide-y divide-rule">
+              {received.map((trace) => (
+                <SentRow key={trace.id} trace={trace} now={now} onRemove={() => dispatch(runsActions.traceRemoved(trace.id))} />
+              ))}
+            </ul>
+            <div>
+              <Button variant="ghost" onClick={() => dispatch(runsActions.receivedCleared())}>
+                <Trash2 size={13} aria-hidden="true" />
+                Remove all
+              </Button>
+            </div>
+          </>
         )}
-      </section>
+      </Block>
 
-      <section aria-labelledby="format-heading" className="flex max-w-[78ch] flex-col gap-3">
-        <h2 id="format-heading" className="text-[20px] font-semibold tracking-tight">
-          What an app sends
-        </h2>
-        <p className="text-[14.5px] leading-relaxed text-muted">
+      <Block id="format-heading" title="What an app sends">
+        <p className="text-[14.5px] leading-relaxed text-ink-2">
           One file, in one named and numbered format, so Hindsight can tell what it holds and refuse what it does not know. Each app writes its own <code className="font-mono text-[13px]">data</code>, and Hindsight turns it into a timeline.
         </p>
-        <pre className="panel overflow-x-auto px-4 py-3 font-mono text-[12.5px] leading-relaxed" tabIndex={0} aria-label="The shape of a run file">
+        <pre className="sheet overflow-x-auto px-4 py-3 font-mono text-[12.5px] leading-relaxed" tabIndex={0} aria-label="The shape of a run file">
 {`{
   "format": "${ENVELOPE_FORMAT}",
   "version": ${ENVELOPE_VERSION},
@@ -266,21 +280,21 @@ export function SourcesView() {
   "data": { ...what that app records about one run }
 }`}
         </pre>
-        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-relaxed text-muted">
+        <ul className="flex list-disc flex-col gap-1.5 pl-5 text-[14px] leading-relaxed text-ink-2">
           <li>
-            <span className="font-medium text-fg">Sayso</span> writes one turn: the words, how they were read, the plan, every call with how long it took, and a log of what happened and when.
+            <span className="font-medium text-ink">Sayso</span> writes one turn: the words, how they were read, the plan, every call with how long it took, and a log of what happened and when.
           </li>
           <li>
-            <span className="font-medium text-fg">Flowboard</span> writes the last run of a flow: the blocks&apos; names and kinds, how they were joined, and for each block that ran its times and the data that passed through. Never what a block is set up to do, because that can hold keys.
+            <span className="font-medium text-ink">Flowboard</span> writes the last run of a flow: the blocks&apos; names and kinds, how they were joined, and for each block that ran its times and the data that passed through. Never what a block is set up to do, because that can hold keys.
           </li>
           <li>
-            <span className="font-medium text-fg">Agent Desk</span> writes a run and the events logged under it, as its own run page holds them.
+            <span className="font-medium text-ink">Agent Desk</span> writes a run and the events logged under it, as its own run page holds them.
           </li>
         </ul>
-        <p className="text-[14px] leading-relaxed text-muted">
+        <p className="text-[14px] leading-relaxed text-ink-2">
           A run is taken only if it comes from the app&apos;s own page, is under {MAX_BYTES / 1_000_000} MB, and fits the shape that app writes. Anything else is refused with the reason.
         </p>
-      </section>
+      </Block>
     </div>
   );
 }

@@ -30,7 +30,7 @@ type State =
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex max-w-[60ch] flex-col gap-4 py-10">
-      <p className="eyebrow">Open in Hindsight</p>
+      <p className="label">Open in Hindsight</p>
       {children}
     </div>
   );
@@ -80,15 +80,15 @@ export function OpenView() {
   if (state.kind === "received") {
     return (
       <Shell>
-        <h1 className="flex items-center gap-2.5 text-[24px] font-semibold tracking-tight">
-          <CircleCheck size={22} className="shrink-0 text-ok" aria-hidden="true" />
+        <h1 className="page-title flex items-center gap-2.5">
+          <CircleCheck size={24} className="shrink-0 text-ink" aria-hidden="true" />
           Received
         </h1>
-        <p role="status" className="text-[15px] leading-relaxed text-muted">
+        <p role="status" className="text-[15px] leading-relaxed text-ink-2">
           “{state.title}” from {SOURCE_LABELS[state.source]}. Opening it.
         </p>
         <p className="text-[14px]">
-          <Link href={`/runs/${encodeURIComponent(state.id)}`} className="text-accent underline underline-offset-2">
+          <Link href={`/runs/${encodeURIComponent(state.id)}`} className="text-ink underline underline-offset-2">
             Open it now
           </Link>
         </p>
@@ -99,16 +99,16 @@ export function OpenView() {
   if (state.kind === "refused") {
     return (
       <Shell>
-        <h1 className="flex items-center gap-2.5 text-[24px] font-semibold tracking-tight">
-          <CircleAlert size={22} className="shrink-0 text-bad" aria-hidden="true" />
+        <h1 className="page-title flex items-center gap-2.5">
+          <CircleAlert size={24} className="shrink-0 text-fail" aria-hidden="true" />
           This run was not taken
         </h1>
         <p role="alert" className="text-[15px] leading-relaxed">
           {state.reason}
         </p>
-        <p className="text-[14px] text-muted">
+        <p className="text-[14px] text-ink-2">
           Nothing was kept. You can also{" "}
-          <Link href="/sources" className="text-accent underline underline-offset-2">
+          <Link href="/sources" className="text-ink underline underline-offset-2">
             drop the file an app saved
           </Link>{" "}
           on the Sources page.
@@ -120,12 +120,12 @@ export function OpenView() {
   if (state.kind === "nobody") {
     return (
       <Shell>
-        <h1 className="text-[24px] font-semibold tracking-tight">This page takes a run from an app</h1>
-        <p className="text-[15px] leading-relaxed text-muted">
-          It is opened by the <span className="font-medium text-fg">Open in Hindsight</span> button in Sayso, Flowboard or Agent Desk, and nothing opened it. Run something in one of them and press the button there.
+        <h1 className="page-title">This page takes a run from an app</h1>
+        <p className="text-[15px] leading-relaxed text-ink-2">
+          It is opened by the <span className="font-medium text-ink">Open in Hindsight</span> button in Sayso, Flowboard or Agent Desk, and nothing opened it. Run something in one of them and press the button there.
         </p>
         <p className="text-[14px]">
-          <Link href="/sources" className="text-accent underline underline-offset-2">
+          <Link href="/sources" className="text-ink underline underline-offset-2">
             How each app is connected
           </Link>
         </p>
@@ -135,18 +135,18 @@ export function OpenView() {
 
   return (
     <Shell>
-      <h1 className="flex items-center gap-2.5 text-[24px] font-semibold tracking-tight">
-        {state.kind === "waiting" ? <LoaderCircle size={22} className="shrink-0 animate-spin text-muted" aria-hidden="true" /> : null}
+      <h1 className="page-title flex items-center gap-2.5">
+        {state.kind === "waiting" ? <LoaderCircle size={24} className="shrink-0 animate-spin text-ink-2" aria-hidden="true" /> : null}
         {state.kind === "waiting" ? "Waiting for the run" : "Nothing has come"}
       </h1>
-      <p role="status" className="text-[15px] leading-relaxed text-muted">
+      <p role="status" className="text-[15px] leading-relaxed text-ink-2">
         {state.kind === "waiting"
           ? "The app that opened this tab is handing the run over."
           : "The app did not send anything. If its tab is still open, press the button there again. Or drop the file it saved on the Sources page."}
       </p>
       {state.kind === "silent" ? (
         <p className="text-[14px]">
-          <Link href="/sources" className="text-accent underline underline-offset-2">
+          <Link href="/sources" className="text-ink underline underline-offset-2">
             Go to Sources
           </Link>
         </p>

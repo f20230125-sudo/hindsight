@@ -21,8 +21,8 @@ export function MomentPanel({ trace, at }: { trace: Trace; at: number | null }) 
   if (!moment) {
     return (
       <div>
-        <h3 className="eyebrow mb-2">At this moment</h3>
-        <p className="text-[14px] leading-relaxed text-muted">
+        <h3 className="label mb-2">At this moment</h3>
+        <p className="text-[14px] leading-relaxed text-ink-2">
           Press Play, move the slider, or point at the time axis, to see what the run was doing at that moment and what the person had been shown by then.
         </p>
       </div>
@@ -31,35 +31,35 @@ export function MomentPanel({ trace, at }: { trace: Trace; at: number | null }) 
 
   return (
     <div>
-      <h3 className="eyebrow mb-1">At this moment</h3>
+      <h3 className="label mb-1">At this moment</h3>
       <p className="tabular mb-3 text-[22px] font-semibold tracking-tight">{formatOffset(moment.at)}</p>
 
-      <h4 className="eyebrow mb-1">Going on</h4>
+      <h4 className="label mb-1">Going on</h4>
       {moment.now.length === 0 ? (
-        <p className="mb-4 text-[13px] text-faint">Nothing. The run had not begun, or had ended.</p>
+        <p className="mb-4 text-[13px] text-ink-3">Nothing. The run had not begun, or had ended.</p>
       ) : (
         <ul className="mb-4 flex flex-col gap-1">
           {moment.now.map(({ span, depth, elapsedMs }) => {
             const Icon = KIND_ICONS[span.kind];
             return (
               <li key={span.id} className="flex items-start gap-2 text-[13px]" style={{ paddingLeft: depth * 12 }}>
-                <Icon size={14} className="mt-0.5 shrink-0 text-faint" aria-hidden="true" />
+                <Icon size={14} className="mt-0.5 shrink-0 text-ink-3" aria-hidden="true" />
                 <span className="min-w-0 flex-1 break-words">{span.name}</span>
-                <span className="tabular shrink-0 text-[12px] text-faint">{formatMs(elapsedMs)} so far</span>
+                <span className="tabular shrink-0 text-[12.5px] text-ink-3">{formatMs(elapsedMs)} so far</span>
               </li>
             );
           })}
         </ul>
       )}
 
-      <h4 className="eyebrow mb-1">Shown so far · {moment.shown.length}</h4>
+      <h4 className="label mb-1">Shown so far ({moment.shown.length})</h4>
       {moment.shown.length === 0 ? (
-        <p className="text-[13px] text-faint">Nothing yet.</p>
+        <p className="text-[13px] text-ink-3">Nothing yet.</p>
       ) : (
         <ol className="max-h-[280px] overflow-y-auto pr-1">
           {moment.shown.map((entry, index) => (
-            <li key={entry.id} ref={index === moment.shown.length - 1 ? latest : undefined} className={`flex gap-2.5 border-t border-line/70 py-1.5 text-[13px] first:border-t-0 ${index === moment.shown.length - 1 ? "font-medium" : "text-muted"}`}>
-              <span className="tabular w-[4.2rem] shrink-0 text-[12px] text-faint">{formatOffset(entry.at)}</span>
+            <li key={entry.id} ref={index === moment.shown.length - 1 ? latest : undefined} className={`flex gap-2.5 border-t border-rule py-1.5 text-[13px] first:border-t-0 ${index === moment.shown.length - 1 ? "font-medium" : "text-ink-2"}`}>
+              <span className="tabular w-[4.2rem] shrink-0 text-[12.5px] text-ink-3">{formatOffset(entry.at)}</span>
               <span className="min-w-0 break-words">{entry.text}</span>
             </li>
           ))}

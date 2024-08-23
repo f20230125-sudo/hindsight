@@ -1,18 +1,30 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Atkinson_Hyperlegible_Mono, Mozilla_Headline } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Providers } from "@/components/Providers";
 import { THEME_SCRIPT } from "@/components/themeScript";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+// Mozilla Headline for everything that is read: its zeros are slashed, so a page
+// of durations and ids never mixes up 0 and O, and its width axis gives a narrow
+// cut for the label gutter. Atkinson Hyperlegible Mono only for text that is
+// data (the JSON tree, the run file, ids), built so that 0/O and 1/l/I differ.
+// Both are self-hosted at build; the page asks no other site for a font.
+const headline = Mozilla_Headline({
+  variable: "--font-headline",
   subsets: ["latin"],
+  axes: ["wdth"],
+  display: "swap",
+  fallback: ["system-ui", "Segoe UI", "sans-serif"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const verbatim = Atkinson_Hyperlegible_Mono({
+  variable: "--font-verbatim",
   subsets: ["latin"],
+  display: "swap",
+  // Only the JSON tree and the run file use it, so it is fetched when one is on the page.
+  preload: false,
+  fallback: ["ui-monospace", "Cascadia Mono", "Consolas", "monospace"],
 });
 
 const TITLE = "Hindsight: what your agents did, after the fact";
@@ -33,8 +45,8 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f5f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0d10" },
+    { media: "(prefers-color-scheme: light)", color: "#e9ebef" },
+    { media: "(prefers-color-scheme: dark)", color: "#0d0f13" },
   ],
 };
 
@@ -42,7 +54,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     // The script below sets data-theme before React loads, so the attribute
     // differs from what the server sent. That is expected.
-    <html lang="en" data-theme="light" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" data-theme="light" suppressHydrationWarning className={`${headline.variable} ${verbatim.variable} h-full antialiased`}>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
@@ -50,12 +62,12 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Providers>
           <a
             href="#main"
-            className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-lg focus:bg-accent focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-accent-fg"
+            className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-control focus:bg-ink focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:text-paper"
           >
             Skip to the content
           </a>
           <Header />
-          <main id="main" className="mx-auto w-full max-w-[1280px] px-4 pb-20 pt-8 sm:px-6">
+          <main id="main" className="mx-auto w-full max-w-[1280px] px-4 pb-20 pt-6 sm:px-6 sm:pt-10">
             {children}
           </main>
         </Providers>
