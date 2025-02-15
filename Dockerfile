@@ -33,7 +33,6 @@ ENV HOSTNAME=0.0.0.0
 RUN addgroup -S -g 10001 hindsight && adduser -S -u 10001 -G hindsight hindsight
 COPY --from=build --chown=hindsight:hindsight /app/.next/standalone ./
 COPY --from=build --chown=hindsight:hindsight /app/.next/static ./.next/static
-COPY --from=build --chown=hindsight:hindsight /app/public ./public
 USER 10001:10001
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
