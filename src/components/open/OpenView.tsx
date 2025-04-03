@@ -24,7 +24,7 @@ type State =
   | { kind: "nobody" }
   /** The tab that opened this page has not sent anything. */
   | { kind: "silent" }
-  | { kind: "received"; title: string; source: SourceName }
+  | { kind: "received"; id: string; title: string; source: SourceName }
   | { kind: "refused"; reason: string };
 
 function Shell({ children }: { children: React.ReactNode }) {
@@ -56,7 +56,7 @@ export function OpenView() {
       }
       dispatch(runsActions.traceReceived(accepted.trace));
       reply({ type: "hindsight:received", id: accepted.trace.id });
-      setState({ kind: "received", title: accepted.trace.title, source: accepted.trace.source });
+      setState({ kind: "received", id: accepted.trace.id, title: accepted.trace.title, source: accepted.trace.source });
       router.replace(`/runs/${encodeURIComponent(accepted.trace.id)}`);
     };
 
@@ -86,6 +86,11 @@ export function OpenView() {
         </h1>
         <p role="status" className="text-[15px] leading-relaxed text-muted">
           “{state.title}” from {SOURCE_LABELS[state.source]}. Opening it.
+        </p>
+        <p className="text-[14px]">
+          <Link href={`/runs/${encodeURIComponent(state.id)}`} className="text-accent underline underline-offset-2">
+            Open it now
+          </Link>
         </p>
       </Shell>
     );
