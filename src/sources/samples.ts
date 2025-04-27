@@ -20,7 +20,15 @@ const sampleFileSchema = z.object({
 
 const FILES = [saysoSample, flowboardSample, agentDeskSample];
 
+let built: Loaded | null = null;
+
+/** The recorded runs never change while the server runs, so they are read and adapted once. */
 export function loadSamples(): Loaded {
+  built ??= buildSamples();
+  return built;
+}
+
+function buildSamples(): Loaded {
   const traces: Trace[] = [];
   let newest = "";
   for (const file of FILES) {

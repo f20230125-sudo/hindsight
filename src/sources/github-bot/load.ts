@@ -38,14 +38,19 @@ function tracesOf(runs: z.infer<typeof deskRunDetailSchema>[], how: "live" | "sa
   return traces.slice(0, MAX_RUNS);
 }
 
-/** The recorded copy, for when GitHub cannot be reached. */
+let recordedCopy: { traces: Trace[]; at: string } | null = null;
+
+/** The recorded copy, for when GitHub cannot be reached. It never changes, so it is adapted once. */
 export function loadRecorded(why: string): Loaded {
-  const recorded = sampleSchema.parse(sample);
+  if (!recordedCopy) {
+    const recorded = sampleSchema.parse(sample);
+    recordedCopy = { traces: tracesOf(recorded.runs, "sample", recorded.recordedAt), at: recorded.recordedAt };
+  }
   return {
-    traces: tracesOf(recorded.runs, "sample", recorded.recordedAt),
+    traces: recordedCopy.traces,
     how: "sample",
-    at: recorded.recordedAt,
-    note: `${why} These are the runs recorded on ${formatDate(recorded.recordedAt)}.`,
+    at: recordedCopy.at,
+    note: `${why} These are the runs recorded on ${formatDate(recordedCopy.at)}.`,
   };
 }
 
