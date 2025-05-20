@@ -37,7 +37,7 @@ if (process.env.CLICK) {
   await page.locator(process.env.CLICK).first().click();
   await page.waitForTimeout(Number(process.env.WAIT ?? 400));
 }
-await page.waitForTimeout(300);
+await page.waitForTimeout(Number(process.env.SETTLE ?? 300));
 
 const file = join(dir, `${name}-${theme}-${width}.png`);
 await page.screenshot({ path: file, fullPage: process.env.FULL !== "0" });
