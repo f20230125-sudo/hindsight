@@ -58,7 +58,8 @@ export function RunTable({ traces, now }: { traces: Trace[]; now: number }) {
               </td>
               <td className="hidden px-3 py-3 align-top md:table-cell">
                 <StatusBadge status={trace.status} />
-                {trace.totals.failures > 0 ? <p className="mt-0.5 text-[12px] text-faint">{plural(trace.totals.failures, "failed call")}</p> : null}
+                {/* Calls, steps and checks that failed: not calls alone, so not called that. */}
+                {trace.totals.failures > 0 ? <p className="mt-0.5 text-[12px] text-faint">{plural(trace.totals.failures, "failure")}</p> : null}
               </td>
               <td className="hidden px-3 py-3 align-top md:table-cell">
                 <time dateTime={trace.startedAt ?? undefined} title={formatDateTime(trace.startedAt)} className="text-[13px] text-muted">

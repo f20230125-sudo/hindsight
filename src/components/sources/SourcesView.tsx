@@ -100,7 +100,15 @@ export function SourcesView() {
         done.push({ name: file.name, ok: false, reason: `This file is ${(file.size / 1_000_000).toFixed(1)} MB. Hindsight takes runs up to ${MAX_BYTES / 1_000_000} MB.` });
         continue;
       }
-      const read = readText(await file.text(), "file", at);
+      let text: string;
+      try {
+        text = await file.text();
+      } catch {
+        // A folder dropped by mistake, or a file that was moved or locked before it could be read.
+        done.push({ name: file.name, ok: false, reason: "This could not be read as a file." });
+        continue;
+      }
+      const read = readText(text, "file", at);
       if (read.ok) {
         dispatch(runsActions.traceReceived(read.trace));
         done.push({ name: file.name, ok: true, id: read.trace.id, title: read.trace.title });

@@ -119,6 +119,60 @@ describe("an AI block that did call a model", () => {
   });
 });
 
+describe("where a block that did not run is placed", () => {
+  const base = runOf("heat check, hot day");
+  const skipped = (id: string, reason: string) => ({ id, status: "skipped" as const, startedAt: null, ms: null, input: null, output: null, branch: null, note: null, error: null, reason });
+  /** The hot day's flow with more blocks, joined as given, and left out in the order given. */
+  const withBlocks = (blocks: string[], connections: [string, string][], steps: (typeof base.run.steps)[number][]): FlowboardRun => ({
+    flow: {
+      ...base.flow,
+      blocks: [...base.flow.blocks, ...blocks.map((id) => ({ id, name: id, type: "set" }))],
+      connections: [...base.flow.connections, ...connections.map(([from, to]) => ({ from, to, side: "out" }))],
+    },
+    run: { ...base.run, steps },
+  });
+
+  it("a block after one that was left out is left out at the same moment, not at the start", () => {
+    // goOut was left out 535 ms in, when isTooHot took the other side. What follows goOut goes with it.
+    const order = base.run.steps.flatMap((step) => (step.id === "goOut" ? [step, skipped("after", "no-data"), skipped("afterThat", "no-data")] : [step]));
+    const trace = adaptFlowboard(withBlocks(["after", "afterThat"], [["goOut", "after"], ["after", "afterThat"]], order), { origin });
+    expect(span(trace, "goOut · Set").startMs).toBe(535);
+    expect(span(trace, "after · Set")).toMatchObject({ startMs: 535, status: "skipped", timing: "estimated" });
+    expect(span(trace, "afterThat · Set")).toMatchObject({ startMs: 535, status: "skipped" });
+  });
+
+  it("a block nothing leads to, or one in a loop, is left out before anything starts", () => {
+    // The run settles these first, whatever leads to them finished later.
+    const order = [skipped("alone", "not-connected"), skipped("round", "in-loop"), ...base.run.steps];
+    const trace = adaptFlowboard(withBlocks(["alone", "round"], [["stayIn", "round"], ["round", "round"]], order), { origin });
+    expect(span(trace, "alone · Set")).toMatchObject({ startMs: 0, status: "skipped", attributes: { why: "nothing leads to it from the trigger" } });
+    // stayIn, which leads to it, finished 536 ms in.
+    expect(span(trace, "round · Set")).toMatchObject({ startMs: 0, status: "skipped", attributes: { why: "it is part of a loop" } });
+  });
+});
+
+describe("a run that does not say when it began", () => {
+  it("is placed by the first of its blocks, and says it has no start time", () => {
+    const base = runOf("heat check, hot day");
+    const trace = adaptFlowboard({ ...base, run: { ...base.run, startedAt: null } }, { origin });
+    expect(trace.startedAt).toBeNull();
+    expect(trace.durationMs).toBe(537);
+    // The same places as when the run said when it began: the trigger was its first block.
+    expect(span(trace, "getWeather · HTTP request")).toMatchObject({ startMs: 2, durationMs: 531 });
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+  });
+});
+
+describe("a block with a very long name", () => {
+  it("has it cut, and the run is still read", () => {
+    const base = runOf("heat check, hot day");
+    const flow = { ...base.flow, blocks: base.flow.blocks.map((block) => (block.id === "getWeather" ? { ...block, name: "w".repeat(3000) } : block)) };
+    const trace = adaptFlowboard({ ...base, flow }, { origin });
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+    expect(Math.max(...trace.spans.map((entry) => entry.name.length))).toBeLessThanOrEqual(500);
+  });
+});
+
 describe("a block that has since been deleted", () => {
   it("is still shown, under a name that says so", () => {
     const base = runOf("heat check, hot day");
