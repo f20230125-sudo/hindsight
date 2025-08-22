@@ -28,7 +28,9 @@ async function read(path: string, extra: Extra, signal: AbortSignal): Promise<An
     if (!loaded.success) return { error: { message: "The server's answer was not in the shape Hindsight expects." } };
     return { data: loaded.data };
   } catch (problem) {
-    return { error: { message: problem instanceof Error ? problem.message : "The request failed." } };
+    // The reason is for whoever is looking at the console ("Failed to fetch", "Unexpected token ..."), not for the page.
+    console.warn(`Hindsight: reading ${path} failed.`, problem);
+    return { error: { message: "The server could not be reached." } };
   }
 }
 

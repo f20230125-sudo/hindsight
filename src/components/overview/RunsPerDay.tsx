@@ -42,18 +42,23 @@ function Column({ day, max }: { day: Day; max: number }) {
             key={status}
             href={`/?day=${day.day}&status=${status}`}
             aria-label={`${formatDate(`${day.day}T12:00:00`)}: ${plural(day.counts[status], `${TRACE_STATUS_LABELS[status].toLowerCase()} run`)}. Show them.`}
-            className={`block w-full ${FILL[status]} ${at === parts.length - 1 ? "rounded-t-[4px]" : ""}`}
+            // A part of a column can be a few pixels high. The top part has an invisible area above it, 24 px high in all,
+            // so a thin one can be pressed. (The parts below it are packed against each other: giving each its own area
+            // would take the neighbours' away. The table view lists every one.)
+            className={`relative block w-full ${FILL[status]} ${
+              at === parts.length - 1 ? "rounded-t-bar before:absolute before:bottom-0 before:left-0 before:h-6 before:w-full before:content-['']" : ""
+            }`}
             style={{ height: Math.max(3, (day.counts[status] / max) * PLOT_HEIGHT - 2) }}
           />
         ))}
       </div>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[220px] rounded-lg border border-line bg-surface px-2.5 py-2 text-left shadow-lift group-focus-within:block group-hover:block"
+        className="pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[220px] rounded-control border border-rule bg-paper px-2.5 py-2 text-left shadow-tip group-focus-within:block group-hover:block"
       >
         <span className="tabular block text-[13px] font-semibold">{plural(day.total, "run")}</span>
-        <span className="block text-[12px] text-muted">{formatDate(`${day.day}T12:00:00`)}</span>
-        <span className="block text-[12px] text-muted">{readout || "No runs"}</span>
+        <span className="block text-[12.5px] text-ink-2">{formatDate(`${day.day}T12:00:00`)}</span>
+        <span className="block text-[12.5px] text-ink-2">{readout || "No runs"}</span>
       </span>
     </li>
   );
@@ -81,15 +86,15 @@ export function RunsPerDay({ traces }: { traces: Trace[] }) {
       }
     >
       {days.length === 0 ? (
-        <p className="text-[14px] text-muted">No run has a start time to place it on a day.</p>
+        <p className="text-[14px] text-ink-2">No run has a start time to place it on a day.</p>
       ) : (
         <>
-          <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-muted" aria-label="How a run ended">
+          <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px] text-ink-2" aria-label="How a run ended">
             {statuses.map((status) => {
               const Icon = ICONS[status];
               return (
                 <li key={status} className="flex items-center gap-1.5">
-                  <span className={`inline-block h-2.5 w-3.5 rounded-[3px] ${FILL[status]}`} aria-hidden="true" />
+                  <span className={`inline-block h-2.5 w-3.5 rounded-bar ${FILL[status]}`} aria-hidden="true" />
                   <Icon size={12} aria-hidden="true" />
                   {TRACE_STATUS_LABELS[status]}
                 </li>
@@ -97,9 +102,9 @@ export function RunsPerDay({ traces }: { traces: Trace[] }) {
             })}
           </ul>
           <div className="flex gap-2 pt-2">
-            <div className="relative w-6 shrink-0 text-right text-[11px] text-faint" style={{ height: PLOT_HEIGHT }} aria-hidden="true">
+            <div className="relative w-6 shrink-0 text-right text-[11px] text-ink-3" style={{ height: PLOT_HEIGHT }} aria-hidden="true">
               {ticks.map((tick) => (
-                <span key={tick} className="tabular absolute right-0 -translate-y-1/2" style={{ bottom: (tick / top) * PLOT_HEIGHT }}>
+                <span key={tick} className="tabular absolute right-0 translate-y-1/2 leading-none" style={{ bottom: (tick / top) * PLOT_HEIGHT }}>
                   {tick}
                 </span>
               ))}
@@ -107,15 +112,15 @@ export function RunsPerDay({ traces }: { traces: Trace[] }) {
             <div className="min-w-0 flex-1">
               <div className="relative" style={{ height: PLOT_HEIGHT }}>
                 {ticks.map((tick) => (
-                  <span key={tick} className="absolute inset-x-0 h-px bg-line" style={{ bottom: (tick / top) * PLOT_HEIGHT }} aria-hidden="true" />
+                  <span key={tick} className="absolute inset-x-0 h-px bg-rule" style={{ bottom: (tick / top) * PLOT_HEIGHT }} aria-hidden="true" />
                 ))}
-                <ul aria-label="Runs by day" className="relative flex h-full items-end gap-1.5">
+                <ul aria-label="Runs by day" className="relative z-10 flex h-full items-end gap-1.5">
                   {days.map((day) => (
                     <Column key={day.day} day={day} max={top} />
                   ))}
                 </ul>
               </div>
-              <div className="mt-1.5 flex gap-1.5 text-[11px] text-faint" aria-hidden="true">
+              <div className="mt-1.5 flex gap-1.5 text-[11px] text-ink-3" aria-hidden="true">
                 {days.map((day, index) => (
                   <span key={day.day} className="tabular min-w-0 flex-1 whitespace-nowrap text-center">
                     {index % step === 0 || index === days.length - 1 ? dayLabel(day.day, index === 0) : ""}

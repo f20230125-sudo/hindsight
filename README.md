@@ -18,7 +18,7 @@ The four apps it reads, all mine: [Sayso](https://github.com/f20230125-sudo/says
 
 The run above is a real Sayso journey: a traveller chooses a window seat and pays. The traveller took 3.66 s to choose and 1.93 s to agree the price, between calls that took 100, 158 and 39 ms. In real time the calls are invisible. **Agent time** squeezes each wait for a person to a share of the work around it and marks the break with its real length, so what the app did fills the picture.
 
-You can zoom and move along a run, play it back (a panel says what was going on at that moment and what the person had been shown), read it as a table, and move through every bar and mark with the arrow keys. The clock, the zoom and the chosen span are in the address, so any view of a run is a link.
+You can zoom and move along a run, play it back (a panel says what was going on at that moment and what the person had been shown), read it as a table, and move through every bar and mark with the arrow keys. The clock, the zoom and the chosen span are in the address, so any view of a run is a link. A run draws itself in once when it opens, bar by bar in the order it happened, in under 700 ms; for a visitor who asks their system for less motion, it is simply there.
 
 **All the runs, added up.**
 
@@ -26,7 +26,7 @@ You can zoom and move along a run, play it back (a panel says what was going on 
 
 Where the time goes, for each app (cut so that nothing is counted twice: a ten-second step holding a nine-second call is nine seconds of call). Runs by day and how they ended, where each part of a column opens exactly those runs. How long runs take, a dot for each run on a scale where each step is ten times the last. The slowest steps, by what they were. Each chart has a table view, a tooltip on hover and on focus, and a legend, and the filters that scope them live in the address.
 
-**The list.** Every run of every app, newest first, filterable by app, result, agent and text, with the figures for what is shown. A run that is a recording says so beside its name, so a recording is never taken for a run that just happened.
+**The list.** Every run of every app, newest first, filterable by app, result, agent and text, with the figures for what is shown added up in a sentence. Each run has its whole shape drawn as a strip beside its name, to its own length, in the colours of the timeline, so a run can be seen before it is opened. A run that is a recording says so beside its name, so a recording is never taken for a run that just happened.
 
 ## Four apps, one format
 
@@ -68,6 +68,7 @@ Building the adapters against real runs, not made-up ones, turned up things a ma
 ## Decisions
 
 - **The format is the contract.** Pages read traces, adapters write them, and an adapter is a plain function tested against real data copied from its app.
+- **The page is ink on grey paper, with no accent colour.** The only colours are the kinds of time in the drawings (and the red of a failure), so the eye goes to them. Everything else is blue-black ink; a chosen control is filled with ink, not coloured. Mozilla Headline sets the page and Atkinson Hyperlegible Mono sets the text that is data (both open licence, served from Hindsight's own server).
 - **Colour means kind of time, and nothing else.** Three kinds of time are worth telling apart at a glance (model, API call, waiting for a person), and take the first three hues of a palette checked for colour-blind separation against both themes' surfaces. Everything else the app does is grey, because it is not an identity. Failures and estimates are not colours: a failed bar has a red underline and an icon, an estimated one has stripes. The status colours of the overview come with an icon and a word.
 - **A wait for a person is not the app being slow.** It gets its own colour, it is squeezed in agent time, it is a separate part of every bar in the overview, and it is left out of the slowest steps.
 - **No chart library.** React draws the timeline and the charts, so they follow the theme, work with the keyboard, and each bar is a real button or link. `d3-scale` is used only for axis arithmetic.
@@ -77,7 +78,7 @@ Building the adapters against real runs, not made-up ones, turned up things a ma
 ## Checks
 
 - 289 unit tests, against real runs where there are real runs: the adapters, the receiver, the time scale and its inverse, playback, the way time is counted without counting twice, the view state, the statistics, the store.
-- 98 end-to-end tests in a real browser: every page, the hand-over from a stand-in for each app's page (including a page that is not allowed, and an app sending as another), the file drop, the keyboard, playback, the security headers and a run made of markup, and axe accessibility scans of every page in both themes and at phone width.
+- 108 end-to-end tests in a real browser: every page, the hand-over from a stand-in for each app's page (including a page that is not allowed, and an app sending as another), the file drop, the keyboard, playback, the run drawing itself in (and not when motion is reduced), the security headers and a run made of markup, and axe accessibility scans of every page in both themes and at phone width.
 - CI runs lint, the type check, the unit tests, the build and the end-to-end tests; builds the Docker image, starts it and asks it for its pages; and applies `deploy/k8s.yaml` to a real cluster (kind) and checks both pods come up under the manifest's security settings.
 - The end-to-end tests found two real faults while this was built: a run saved 250 ms after it arrived was lost if the page was reloaded inside that wait (it is now saved when the page is left), and a link inside running text that was told apart only by colour (it is underlined).
 - A review after it was built, reading each adapter beside the app it reads, found more that the tests had passed over, each now fixed with a test:

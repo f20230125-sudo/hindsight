@@ -1,65 +1,67 @@
 @import "tailwindcss";
 
-/* Colours are named by role, not by shade. Each role has a light and a dark
-   value; components only ever use the role.
+/* Hindsight draws everything that took time as a length on a ruled sheet, and
+   keeps the rest of the page in ink. Colour only ever means a kind of time
+   (blue model call, orange API call, green waiting for a person, grey the
+   app's own steps), or failure (red). Everything else is blue-black ink on grey
+   paper, so there is no accent colour to name.
 
-   The text colours (fg, muted, faint) are chosen to keep a contrast of at
-   least 4.5:1 against every background they sit on (bg, surface, surface-2),
-   which the accessibility tests check. */
+   Surfaces are named by role. Each role has a light and a dark value, and
+   components only ever use the role:
+     desk     the page behind everything, and the header. Words sit here.
+     paper    the sheet: anything drawn on a clock, data tables, tooltips,
+              inputs. The only ground the data colours sit on.
+     paper-2  row hover, the groove under a strip, a selected row.
+     ink      text, links, the focus ring, a selected control, the playhead.
+     rule     hairlines and the sheet's border. Decoration only.
+     edge     the border of a control that must be found (search, segmented).
+
+   The text colours (ink, ink-2, ink-3) keep a contrast of at least 4.5:1
+   against desk, paper and paper-2, which the accessibility tests check. */
 :root,
 [data-theme="light"] {
-  --bg: #f4f5f7;
-  --surface: #ffffff;
-  --surface-2: #eef0f3;
-  --line: #dfe3e8;
-  --line-strong: #c5cbd3;
-  --fg: #14171c;
-  --muted: #4a5361;
-  --faint: #616a76;
-  --accent: #4f4fd1;
-  --accent-fg: #ffffff;
-  --accent-soft: #e9e9fd;
-  --ok: #15803d;
-  --warn: #b45309;
-  --bad: #c81e1e;
-  /* The colour of a bar in a chart. Each theme has its own, checked against
-     that theme's surface for lightness and contrast. The dark one is a step
-     darker than the dark accent, which is too light to read as a filled bar. */
-  --series: #4f4fd1;
+  --desk: #e9ebef;
+  --paper: #ffffff;
+  --paper-2: #f2f4f6;
+  --ink: #141925;
+  --ink-2: #424c5c;
+  --ink-3: #566071;
+  --rule: #d3d8df;
+  --edge: #7f8896;
+  /* Failure and nothing else: a bar's underline, an icon, "1 failure". */
+  --fail: #c81e1e;
+  /* A run that was stopped. Its icon only. */
+  --stopped: #b45309;
   /* What a bar in the timeline is made of. Three colours, one per kind of time
-     worth telling apart, from the validated reference palette (slots 1 to 3,
-     checked as all pairs against this surface). Grey is "the app's own
-     steps": it is not an identity, so it stays quiet. */
+     worth telling apart, from the validated reference palette (checked as all
+     pairs against this surface). Grey is "the app's own steps": it is not an
+     identity, so it stays quiet. Unchanged: do not retouch without running the
+     colour-blind check again. */
   --viz-model: #2a78d6;
   --viz-call: #eb6834;
   --viz-wait: #1baf7a;
   --viz-own: #8a929e;
-  /* How a run ended, in a chart. Fixed: the same in both themes, always with a word and a shape beside them. */
+  /* How a run ended, in the by-day chart. Fixed: the same in both themes, always with a word and a shape beside them. */
   --viz-good: #0ca30c;
   --viz-warning: #fab219;
   --viz-critical: #d03b3b;
-  --shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 4px 12px rgb(16 24 40 / 0.06);
-  --shadow-lift: 0 1px 2px rgb(16 24 40 / 0.06), 0 12px 32px rgb(16 24 40 / 0.1);
+  /* The one shadow: a tooltip or a toast. */
+  --tip-shadow: 0 6px 16px rgb(20 25 37 / 0.14);
 
   color-scheme: light;
 }
 
 [data-theme="dark"] {
-  --bg: #0b0d10;
-  --surface: #14171c;
-  --surface-2: #1b1f26;
-  --line: #262b34;
-  --line-strong: #3a414d;
-  --fg: #e8eaee;
-  --muted: #aab2bd;
-  --faint: #8b94a1;
-  --accent: #9090f8;
-  --accent-fg: #0b0d10;
-  --accent-soft: #20203f;
-  --ok: #3ddc97;
-  --warn: #f5b942;
-  --bad: #ff7b7b;
-  --series: #8585f2;
+  --desk: #0d0f13;
+  --paper: #14171c;
+  --paper-2: #1b1f26;
+  --ink: #e9ecf2;
+  --ink-2: #b3bbc7;
+  --ink-3: #8f98a6;
+  --rule: #262b34;
+  --edge: #6b7482;
+  --fail: #ff7b7b;
+  --stopped: #f5b942;
   --viz-model: #3987e5;
   --viz-call: #d95926;
   --viz-wait: #199e70;
@@ -67,28 +69,50 @@
   --viz-good: #0ca30c;
   --viz-warning: #fab219;
   --viz-critical: #d03b3b;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 6px 16px rgb(0 0 0 / 0.35);
-  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.4), 0 16px 40px rgb(0 0 0 / 0.5);
+  /* A shadow on a dark page is black: 14% of a light ink would glow. */
+  --tip-shadow: 0 6px 16px rgb(0 0 0 / 0.5);
 
   color-scheme: dark;
 }
 
+/* Sizes that are shared by every page. */
+:root {
+  /* The label gutter: words and metadata hang in it, drawings in the track.
+     Every page that has tracks uses it, so bars start at the same x. */
+  --gutter: 14rem;
+  /* The visible bar, and the invisible area around it that can be pressed. */
+  --bar: 16px;
+  --hit: 28px;
+  --column: 1280px;
+
+  /* Motion. Short state changes, one slow moment: a run drawing itself. */
+  --dur-hover: 150ms;
+  --dur-state: 250ms;
+  --dur-draw: 360ms;
+}
+
+/* Radius by role: bars, swatches, strips and mark squares; the inside of a
+   segmented control; a control; the sheet. No pill shapes, except the round
+   count badge on a crowd of marks. */
+@theme static {
+  --radius-bar: 3px;
+  --radius-inner: 4px;
+  --radius-control: 6px;
+  --radius-sheet: 8px;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @theme inline {
-  --color-bg: var(--bg);
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-line: var(--line);
-  --color-line-strong: var(--line-strong);
-  --color-fg: var(--fg);
-  --color-muted: var(--muted);
-  --color-faint: var(--faint);
-  --color-accent: var(--accent);
-  --color-accent-fg: var(--accent-fg);
-  --color-accent-soft: var(--accent-soft);
-  --color-ok: var(--ok);
-  --color-warn: var(--warn);
-  --color-bad: var(--bad);
-  --color-series: var(--series);
+  --color-desk: var(--desk);
+  --color-paper: var(--paper);
+  --color-paper-2: var(--paper-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-rule: var(--rule);
+  --color-edge: var(--edge);
+  --color-fail: var(--fail);
+  --color-stopped: var(--stopped);
   --color-viz-model: var(--viz-model);
   --color-viz-call: var(--viz-call);
   --color-viz-wait: var(--viz-wait);
@@ -96,11 +120,9 @@
   --color-viz-good: var(--viz-good);
   --color-viz-warning: var(--viz-warning);
   --color-viz-critical: var(--viz-critical);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --shadow-panel: var(--shadow);
-  --shadow-lift: var(--shadow-lift);
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --font-sans: var(--font-headline), system-ui, "Segoe UI", sans-serif;
+  --font-mono: var(--font-verbatim), ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --shadow-tip: var(--tip-shadow);
 }
 
 html,
@@ -109,26 +131,34 @@ body {
 }
 
 body {
-  background: var(--bg);
-  color: var(--fg);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.45;
+  /* Durations and ids are read as columns of figures: every numeral is the same width. */
+  font-variant-numeric: tabular-nums;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--accent) 28%, transparent);
+  background: color-mix(in oklab, var(--ink) 20%, transparent);
 }
 
 /* Thin scrollbars that match the theme. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--line-strong) transparent;
+  scrollbar-color: var(--edge) transparent;
 }
 
-/* One focus ring everywhere, visible on both themes. */
+/* One focus ring everywhere, on both themes, including on a control filled with ink.
+   Nothing transitions while it is drawn: a button that fades its colours (transition-colors
+   includes the outline's) would otherwise show a ring that begins in the text colour and
+   fades to ink, which on an ink-filled control is a white flash. */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
+  transition-property: none;
 }
 
 /* For an input that sits inside a box which shows the focus itself. */
@@ -137,80 +167,103 @@ body {
 }
 
 .ring-within:focus-within {
-  border-color: var(--accent);
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent),
-    var(--shadow-lift);
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
 
-/* Equal-width digits: for prices and times that line up in a column. */
+/* Equal-width digits: for prices and times that line up in a column. (Already
+   the page's default; the class is kept where a part of a page needs saying so.) */
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* The small label above a thing: "THE SLOWEST STEPS". */
-.eyebrow {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 11px;
+/* The name of a group of things: "App", "Result". Plain, not tracked, not capitals. */
+.label {
+  font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--faint);
+  color: var(--ink-3);
 }
 
-/* The card every component sits in. */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  box-shadow: var(--shadow);
+/* The title of a page: 26 px on a phone, 34 px from 640 px up, in a slightly narrower cut. */
+.page-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.012em;
+  font-variation-settings: "wdth" 92;
+}
+
+@media (min-width: 640px) {
+  .page-title {
+    font-size: 34px;
+  }
+}
+
+/* A row's name in the label gutter of a timeline or a chart: a narrower cut of the face, so a path such as
+   "GET /users/f20230125-sudo/repos" does not wrap in 14rem. */
+.gutter-label {
+  font-size: 13px;
+  font-weight: 450;
+  font-variation-settings: "wdth" 85;
+}
+
+/* A length of time in the grammar of the page: the number, then a lighter unit, never split across a line. */
+.dur {
+  white-space: nowrap;
+}
+
+.dur-unit {
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+/* The sheet: the one kind of box, around a drawing or a data table. */
+.sheet {
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sheet);
 }
 
 /* A bar whose times were worked out from the log, not measured: stripes in
-   the colour of the surface across the fill, so it reads as less certain
+   the colour of the sheet across the fill, so it reads as less certain
    without changing which kind of time it is. */
 .hatched {
-  background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in oklab, var(--surface) 60%, transparent) 3px 5px);
+  background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in oklab, var(--paper) 60%, transparent) 3px 5px);
 }
 
 /* Where a wait for a person was squeezed on the axis: a band across the rows,
    so the reader sees the track is not a straight line there. */
 .break-band {
-  background-image: repeating-linear-gradient(135deg, color-mix(in oklab, var(--line-strong) 55%, transparent) 0 1px, transparent 1px 7px);
-  background-color: color-mix(in oklab, var(--surface-2) 70%, transparent);
-  border-inline: 1px dashed var(--line-strong);
+  background-image: repeating-linear-gradient(135deg, color-mix(in oklab, var(--edge) 55%, transparent) 0 1px, transparent 1px 7px);
+  background-color: color-mix(in oklab, var(--paper-2) 70%, transparent);
+  border-inline: 1px dashed var(--edge);
 }
 
-/* How a new line or component arrives. */
-@keyframes rise-in {
+/* A run draws itself once: each bar is uncovered from its own left edge, in the
+   order it happened. The delay is set on the bar (0 to 340 ms, by where it
+   starts), so the whole run is in within 700 ms. clip-path keeps layout and
+   the tab order as they are. Only a run that has just opened is drawn: the class
+   is taken off again when the time is up, so zooming, moving along and
+   switching the clock do not draw it again. */
+@keyframes draw-in {
   from {
-    opacity: 0;
-    transform: translateY(8px);
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    opacity: 1;
-    transform: none;
+    clip-path: inset(0);
   }
 }
 
-.rise-in {
-  animation: rise-in 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+.draw-in {
+  animation: draw-in var(--dur-draw) var(--ease-out) both;
+  animation-delay: var(--draw-delay, 0ms);
 }
 
-/* Three dots while the desk is working. */
-@keyframes working-dot {
-  0%,
-  80%,
-  100% {
-    opacity: 0.25;
-  }
-  40% {
-    opacity: 1;
-  }
-}
-
-.working-dot {
-  animation: working-dot 1.2s ease-in-out infinite;
+/* Bars move to their new place when the clock changes: left and width, 250 ms. */
+.bar-move {
+  transition:
+    left var(--dur-state) var(--ease-out),
+    width var(--dur-state) var(--ease-out);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -220,5 +273,14 @@ body {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  /* The reduction above shortens a duration but not a delay, so a delayed bar would stay hidden for up to 700 ms. */
+  .draw-in {
+    animation: none !important;
+  }
+
+  .bar-move {
+    transition: none !important;
   }
 }

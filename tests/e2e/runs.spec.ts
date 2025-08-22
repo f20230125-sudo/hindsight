@@ -6,10 +6,10 @@ test.describe("the list of runs", () => {
     await openRuns(page);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("What your agents did, after the fact");
 
-    // The bot's 54 runs and 17 recorded runs of the other three apps.
+    // The bot's 54 runs and 17 recorded runs of the other three apps, added up in a sentence.
     const figures = page.getByRole("region", { name: "Figures for the runs shown" });
-    await expect(figures.getByText("71", { exact: true })).toBeVisible();
-    await expect(figures.getByText("Used a model")).toBeVisible();
+    await expect(figures).toContainText("71 runs.");
+    await expect(figures).toContainText("used a model.");
 
     // The test server has no way to reach GitHub, and the page says so rather than showing the copy as live.
     const origin = page.getByRole("region", { name: "Where the runs come from" });
@@ -27,6 +27,30 @@ test.describe("the list of runs", () => {
     await page.getByRole("button", { name: "Show 21 more" }).click();
     await expect(page.getByText("Showing 71 of 71")).toBeVisible();
   });
+
+  test("says what the strips are, and what their colours mean, above the list", async ({ page }) => {
+    await openRuns(page);
+    await expect(page.getByText("Each strip is one run, drawn to its own length.")).toBeVisible();
+    const key = page.getByRole("list", { name: "What the colours in the strips mean" });
+    for (const kind of ["Model calls", "API calls", "Waiting for a person", "The app's own steps"]) await expect(key).toContainText(kind);
+  });
+
+  for (const [width, height] of [
+    [390, 844],
+    [800, 900],
+  ]) {
+    test(`shows the first run, with its strip, on the first screen at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await openRuns(page);
+      const strip = runsTable(page).locator('[data-testid="strip"]:visible').first();
+      await expect(strip).toBeVisible();
+      const box = (await strip.boundingBox())!;
+      expect(box.y + box.height).toBeLessThanOrEqual(height);
+      // Where the runs come from is one line to open, and says so; each run still says whether it is a recording.
+      await expect(page.getByText("Which runs are recordings, and which are read live")).toBeVisible();
+      await expect(runsTable(page).getByText("recorded", { exact: true }).first()).toBeVisible();
+    });
+  }
 
   test("filters by agent, keeps the choice in the address, and clears it", async ({ page }) => {
     await openRuns(page);

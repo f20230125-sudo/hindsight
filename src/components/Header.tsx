@@ -21,16 +21,19 @@ const LINKS = [
   { href: "/sources", label: "Sources" },
 ];
 
+// Opaque desk with a hairline under it: nothing is blurred. The page you are on
+// is ink with a rule under it, drawn on the header's own edge.
 export function Header() {
   const pathname = usePathname();
   return (
-    <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center gap-3 px-4 sm:gap-6 sm:px-6">
-        <Link href="/" className="flex items-center gap-2.5 rounded-md text-[15px] font-semibold tracking-tight">
-          <Logo />
-          Hindsight
+    <header className="sticky top-0 z-30 border-b border-rule bg-desk">
+      <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center gap-2 px-3 min-[380px]:gap-3 min-[380px]:px-4 sm:gap-7 sm:px-6">
+        <Link href="/" className="flex h-11 items-center gap-2 rounded-control text-[17px] font-bold tracking-tight sm:gap-2.5">
+          <Logo size={20} />
+          {/* On the narrowest phones the name gives way to the mark, so the toggle stays on the screen; it is still the link's name. */}
+          <span className="sr-only min-[380px]:not-sr-only">Hindsight</span>
         </Link>
-        <nav aria-label="Main" className="flex items-center gap-1">
+        <nav aria-label="Main" className="flex h-full items-stretch gap-2.5 min-[380px]:gap-3 sm:gap-5">
           {LINKS.map((link) => {
             const current = link.href === "/" ? pathname === "/" || pathname.startsWith("/runs") : pathname.startsWith(link.href);
             return (
@@ -38,7 +41,10 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className={`rounded-lg px-2 py-1.5 text-[13px] font-medium transition-colors sm:px-2.5 ${current ? "bg-surface-2 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+                // The link is as tall as the header, so its ring is drawn inside it, not above the top edge of the page.
+                className={`flex items-center rounded-control border-b-2 px-0.5 pt-0.5 text-[14px] font-medium transition-colors duration-150 focus-visible:-outline-offset-2 ${
+                  current ? "border-ink text-ink" : "border-transparent text-ink-2 hover:text-ink"
+                }`}
               >
                 {link.label}
               </Link>

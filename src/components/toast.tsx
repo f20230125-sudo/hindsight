@@ -45,15 +45,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-center gap-3 rounded-lg border bg-surface px-3 py-2 text-sm shadow-panel ${
-              toast.tone === "bad" ? "border-bad text-bad" : "border-line text-fg"
+            className={`pointer-events-auto flex items-center gap-3 rounded-control border bg-paper px-3 py-2 text-sm shadow-tip ${
+              toast.tone === "bad" ? "border-fail text-fail" : "border-rule text-ink"
             }`}
           >
             <span>{toast.message}</span>
             {toast.action && (
               <button
                 type="button"
-                className="rounded px-1.5 py-0.5 font-medium text-accent hover:bg-accent-soft"
+                className="rounded-bar px-1.5 py-0.5 font-medium text-ink underline underline-offset-2 hover:bg-paper-2"
                 onClick={() => {
                   toast.action?.run();
                   dismiss(toast.id);
@@ -62,7 +62,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                 {toast.action.label}
               </button>
             )}
-            <button type="button" aria-label="Dismiss" className="text-faint hover:text-fg" onClick={() => dismiss(toast.id)}>
+            <button type="button" aria-label="Dismiss" className="text-ink-3 hover:text-ink" onClick={() => dismiss(toast.id)}>
               <X size={14} />
             </button>
           </div>
