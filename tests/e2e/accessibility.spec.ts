@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { AUDIT_PATH, CUT_AUDIT_PATH, detail, openRun, openRuns, timeline } from "./helpers";
+import { AUDIT_PATH, CUT_AUDIT_PATH, DESK_PATH, FLOWBOARD_PATH, SAYSO_PATH, detail, openRun, openRuns, recorded, timeline } from "./helpers";
 
 // Every page is scanned in both themes: colours that pass in one often fail
 // in the other. The scans read the page as it is, with no rules switched off.
@@ -59,6 +59,36 @@ for (const theme of ["light", "dark"] as const) {
     test("the page for a run that does not exist has none", async ({ page }) => {
       await page.goto("/runs/github-bot%3Anot-a-run");
       await expect(page.getByRole("heading", { name: "There is no run with this address" })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("a recorded run of each of the other apps has none", async ({ page }) => {
+      for (const path of [SAYSO_PATH, FLOWBOARD_PATH, DESK_PATH]) {
+        await openRun(page, path);
+        expect(await violations(page), path).toEqual([]);
+      }
+    });
+
+    test("the sources page has none", async ({ page }) => {
+      await page.goto("/sources");
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText("How each app is connected");
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("the sources page with a file taken and a file refused has none", async ({ page }) => {
+      await page.goto("/sources");
+      await page.locator('input[type="file"]').setInputFiles([
+        { name: "good.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(recorded("sayso"))) },
+        { name: "bad.json", mimeType: "application/json", buffer: Buffer.from("not json") },
+      ]);
+      await expect(page.getByText("bad.json was not taken.")).toBeVisible();
+      await expect(page.getByRole("region", { name: "Runs sent to this browser" }).getByRole("listitem")).toHaveCount(1);
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("the page an app opens, when nothing opened it, has none", async ({ page }) => {
+      await page.goto("/open");
+      await expect(page.getByRole("heading", { name: "This page takes a run from an app" })).toBeVisible();
       expect(await violations(page)).toEqual([]);
     });
   });

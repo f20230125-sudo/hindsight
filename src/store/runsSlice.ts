@@ -21,8 +21,10 @@ const runsSlice = createSlice({
   name: "runs",
   initialState,
   reducers: {
+    /** The saved runs were read. Any that arrived while they were being read are kept, as the newer. */
     receivedLoaded(state, action: PayloadAction<Trace[]>) {
-      state.received = action.payload.slice(0, MAX_RECEIVED);
+      const newer = new Set(state.received.map((trace) => trace.id));
+      state.received = [...state.received, ...action.payload.filter((trace) => !newer.has(trace.id))].slice(0, MAX_RECEIVED);
       state.loaded = true;
     },
     /** A run arrived. One with the same id is replaced. */

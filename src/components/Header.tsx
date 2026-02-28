@@ -15,7 +15,10 @@ export function Logo({ size = 18 }: { size?: number }) {
   );
 }
 
-const LINKS = [{ href: "/", label: "Runs" }];
+const LINKS = [
+  { href: "/", label: "Runs" },
+  { href: "/sources", label: "Sources" },
+];
 
 export function Header() {
   const pathname = usePathname();

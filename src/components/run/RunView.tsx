@@ -89,7 +89,9 @@ export function RunView({ id }: { id: string }) {
         </p>
       ) : errors.length > 0 ? (
         <div role="alert" className="panel flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[14px]">
-          <span>The runs could not be read: {errors[0].message}</span>
+          <span>
+            {errors[0].what} could not be read: {errors[0].message}
+          </span>
           <button type="button" onClick={retry} className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium hover:bg-surface-2">
             Try again
           </button>
