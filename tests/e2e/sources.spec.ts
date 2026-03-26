@@ -86,3 +86,12 @@ test("a run can be removed all at once", async ({ page }) => {
   await sent.getByRole("button", { name: "Remove all" }).click();
   await expect(sent.getByText("None yet.")).toBeVisible();
 });
+
+test("keeps a run even when the page is reloaded the moment it was read", async ({ page }) => {
+  // A run is saved a moment after it arrives. A reload inside that moment used to lose it.
+  await page.goto("/sources");
+  await input(page).setInputFiles(file("quick.json", JSON.stringify(recorded("sayso"))));
+  await expect(page.getByText("quick.json was read.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Runs sent to this browser" }).getByRole("listitem")).toHaveCount(1);
+});
