@@ -62,6 +62,28 @@ for (const theme of ["light", "dark"] as const) {
       expect(await violations(page)).toEqual([]);
     });
 
+    test("a run in agent time, zoomed in on a call that is chosen, has none", async ({ page }) => {
+      await openRun(page, `${SAYSO_PATH}?time=agent`);
+      await timeline(page).getByRole("button", { name: /^POST \/api\/quotes\. API call/ }).click();
+      await page.getByRole("button", { name: "Zoom to the chosen one" }).click();
+      await expect(page.getByRole("button", { name: "Zoom out" })).toBeEnabled();
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("the table view has none", async ({ page }) => {
+      await openRun(page, SAYSO_PATH);
+      await page.getByRole("button", { name: "Table" }).click();
+      await expect(page.getByRole("table", { name: "Every bar and mark of the run, in the order they began" })).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("the playhead, and what the person had been shown at that moment, have none", async ({ page }) => {
+      await openRun(page, SAYSO_PATH);
+      await page.getByRole("slider", { name: "Moment in the run" }).fill("2000");
+      await expect(detail(page)).toContainText("Shown: Seat map");
+      expect(await violations(page)).toEqual([]);
+    });
+
     test("a recorded run of each of the other apps has none", async ({ page }) => {
       for (const path of [SAYSO_PATH, FLOWBOARD_PATH, DESK_PATH]) {
         await openRun(page, path);
