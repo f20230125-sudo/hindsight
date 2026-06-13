@@ -1,26 +1,49 @@
 # Hindsight
 
-**What your agents did, after the fact.** Hindsight reads the runs of four apps and lays each one out on a timeline: what was understood, every call, every wait, every check, with the time each took.
+**What your agents did, after the fact.** Hindsight reads the runs of four apps and lays each one out on a timeline: what was understood, every call, every wait, every check, with the time each took. It is a small version of an agent observer: one place to look when an agent did something and you want to know how.
 
-It is a small version of an agent observer: one place to look when an agent did something and you want to know how.
+**Live: https://hindsight-sand.vercel.app**
 
-- Live: https://hindsight-sand.vercel.app
-- The apps it reads: [Sayso](https://github.com/f20230125-sudo/sayso), [Flowboard](https://github.com/f20230125-sudo/flowboard), [Agent Desk and the GitHub bot](https://github.com/f20230125-sudo/github-bot)
+![A tour: the list of runs, one run on a timeline, agent time, playback, the overview](docs/demo.gif)
 
-## How each app gets its runs here
+The four apps it reads, all mine: [Sayso](https://github.com/f20230125-sudo/sayso) (a desk where a typed request is answered with working interface), [Flowboard](https://github.com/f20230125-sudo/flowboard) (a visual workflow builder), and [Agent Desk and its GitHub bot](https://github.com/f20230125-sudo/github-bot) (two agents that look after a GitHub and a LinkedIn presence).
 
-| App | How | Where its runs come from before one is sent |
+## What it shows
+
+**One run, as a timeline.** One bar for each stretch of work, indented under the step that held it; things that happened at a moment are small marks. Blue is a model call, orange an API call, green waiting for a person, grey the app's own steps. A failed bar has a red underline and an icon; a bar whose times were worked out from the log, not measured, is striped, and the panel says why.
+
+| Real time | Agent time |
+|---|---|
+| ![A Sayso run in real time: the calls are slivers](docs/screenshots/run-real-time.png) | ![The same run in agent time: the waits are squeezed and the calls can be read](docs/screenshots/run-agent-time.png) |
+
+The run above is a real Sayso journey: a traveller chooses a window seat and pays. The traveller took 3.66 s to choose and 1.93 s to agree the price, between calls that took 100, 158 and 39 ms. In real time the calls are invisible. **Agent time** squeezes each wait for a person to a share of the work around it and marks the break with its real length, so what the app did fills the picture.
+
+You can zoom and move along a run, play it back (a panel says what was going on at that moment and what the person had been shown), read it as a table, and move through every bar and mark with the arrow keys. The clock, the zoom and the chosen span are in the address, so any view of a run is a link.
+
+**All the runs, added up.**
+
+![The overview: where the time goes, runs by day, how long runs take, the slowest steps](docs/screenshots/overview.png)
+
+Where the time goes, for each app (cut so that nothing is counted twice: a ten-second step holding a nine-second call is nine seconds of call). Runs by day and how they ended, where each part of a column opens exactly those runs. How long runs take, a dot for each run on a scale where each step is ten times the last. The slowest steps, by what they were. Each chart has a table view, a tooltip on hover and on focus, and a legend, and the filters that scope them live in the address.
+
+**The list.** Every run of every app, newest first, filterable by app, result, agent and text, with the figures for what is shown. A run that is a recording says so beside its name, so a recording is never taken for a run that just happened.
+
+## Four apps, one format
+
+![How a run gets from an app to a timeline](docs/architecture.svg)
+
+Each app keeps its runs its own way. An **adapter** in `src/sources` turns a run into one shape, a `Trace`, and nothing outside `src/sources` knows where a trace came from. The format is a Zod schema in `src/trace/schema.ts`; the types are worked out from it, and the same schema checks anything that arrives from outside. A trace is a list of spans. Each has a kind (`understand`, `plan`, `step`, `tool`, `model`, `wait`, `check`, `said`), a start and a length from the beginning of the run, a status, whether its times were `measured` or `estimated`, the line the person was shown (if any), and the data the app recorded.
+
+| App | How its runs get here | Until one is sent |
 |---|---|---|
-| GitHub bot | Read live from the file its scheduled job commits to GitHub | The recorded copy, if GitHub cannot be reached |
-| Sayso | An **Open in Hindsight** button in its "How it worked" panel | 11 real runs, recorded by driving the app in a browser |
-| Flowboard | An **Open in Hindsight** button in its Run panel | 5 real runs, recorded the same way |
+| GitHub bot | Read live from the file its scheduled job commits to GitHub | A recorded copy, if GitHub cannot be reached |
+| Sayso | An **Open in Hindsight** button in its "How it worked" panel | 11 real runs recorded by driving the app in a browser |
+| Flowboard | An **Open in Hindsight** button in its Run panel | 5 real runs recorded the same way |
 | Agent Desk | An **Open in Hindsight** button on a run's page | 1 real audit from its backend, with GitHub answering for real |
-
-Runs that were recorded say so in the list, so a recording is never taken for a run that just happened.
 
 ### Sending a run, with no server
 
-The button opens Hindsight's `/open` page in a new tab. That page tells the tab that opened it that it is ready (a message with nothing in it). The app answers with the run, addressed to Hindsight's origin alone, so no other page can read it. Hindsight keeps it in the browser and opens it. If the tab is blocked, or says nothing for five seconds, the app saves the run as a file, which can be dropped on the Sources page.
+The button opens Hindsight's `/open` page in a new tab. That page tells the tab that opened it that it is ready (a message with nothing in it). The app answers with the run, addressed to Hindsight's origin alone, so no other page can read it. Hindsight keeps it in the browser and opens it. If the tab is blocked, or says nothing for five seconds, the app saves the run as a file, which can be dropped on the Sources page. Nothing is uploaded.
 
 Everything that arrives is checked, in `src/sources/receive.ts`:
 
@@ -28,31 +51,32 @@ Everything that arrives is checked, in `src/sources/receive.ts`:
 - it is read only from the tab that opened Hindsight's page, and anything else is ignored without a word;
 - it must be under 2 MB, say it is in the `hindsight/run` format, version 1, and fit the shape that app is known to write, or it is refused with the reason, in plain words.
 
-What each app sends is its own record of one run (Sayso: a turn with its plan, calls and a log of what happened and when; Flowboard: the blocks' names and kinds and the data that passed through them, never their settings, which can hold keys; Agent Desk: a run and its events). Adding an app means writing one adapter and adding its address to the list.
+What each app sends is its own record of one run: Sayso, a turn with its plan, calls and a log of what happened and when; Flowboard, the blocks' names and kinds and the data that passed through them, **never their settings**, which can hold keys; Agent Desk, a run and its events. Adding an app means writing one adapter and adding its address to the list.
 
-## What you can do
+## What the real data showed
 
-- **See every run of every app in one list**, newest first, with figures on top (how many, how many succeeded, the typical length, the slowest tenth). Filter by app, result and agent, or search. The filters live in the address, so any view is a link.
-- **Open a run** to see it on a timeline. One bar per stretch of work, indented under the step that held it; things that happened at a moment are small marks. Blue is a model call, orange an API call, green waiting for a person, grey the app's own steps. Hover or focus a bar for its length; choose it for everything the app recorded.
-- **See what is certain and what is not.** A bar drawn with stripes has times that were worked out from the log, not measured, and the panel says why.
+Building the adapters against real runs, not made-up ones, turned up things a made-up run would not have.
 
-## One format, one adapter per app
+- **A call can be logged after its run began.** The GitHub bot's scheduled job logs each call when it ends, with how long it took, so a call began that long before its stamp. In 48 of the 78 calls in the recorded runs, that is before the run's first event. Drawing them at their true length would put them before the start of the run, so each is cut at the start, marked as estimated, and the panel says how long the call really took and how much of it falls before the run was recorded. Nothing is stretched to make the picture tidy. (Agent Desk's own runs, logged as they happen, have none.)
+- **25 of the bot's 78 GitHub requests were refused with `403`.** The cause is in the bot's own code: the token a scheduled GitHub Actions job is given cannot list a user's repositories through `/user/repos`, so the bot is refused and asks for the public list instead. It remembers a refusal only for the length of one process, and the job starts a new process for every run, so it asks, and is refused, on every scheduled audit. The run succeeds, so nothing in its log says it failed. Hindsight shows each refusal as a failed call inside a run that succeeded, which is what an observer is for.
+- **In the recorded Sayso journeys, 92% of the time was the traveller deciding.** The bot's runs are 98% API calls. Neither shows in real time on a single run, and both show in the overview.
+- **The demo session in Agent Desk's fixtures was not used.** Its events are 120 ms apart for calls recorded at about 400 ms, because that is replay pacing, so a timeline built from it would be invented. The Agent Desk sample is a real audit by its backend instead.
 
-Each app keeps its runs its own way. An adapter in `src/sources` turns a run into one shape, a `Trace`, and nothing outside `src/sources` knows where a trace came from. The format is a Zod schema in `src/trace/schema.ts`; the types are worked out from it, and the same schema checks anything that arrives from outside (a run sent by an app, a file, a copy kept in the browser).
+## Decisions
 
-A trace is a list of spans. Each has a kind (`understand`, `plan`, `step`, `tool`, `model`, `wait`, `check`, `said`), a start and a length from the beginning of the run, a status, whether its times were `measured` or `estimated`, the line the person was shown (if any), and the data the app recorded.
+- **The format is the contract.** Pages read traces, adapters write them, and an adapter is a plain function tested against real data copied from its app.
+- **Colour means kind of time, and nothing else.** Three kinds of time are worth telling apart at a glance (model, API call, waiting for a person), and take the first three hues of a palette checked for colour-blind separation against both themes' surfaces. Everything else the app does is grey, because it is not an identity. Failures and estimates are not colours: a failed bar has a red underline and an icon, an estimated one has stripes. The status colours of the overview come with an icon and a word.
+- **A wait for a person is not the app being slow.** It gets its own colour, it is squeezed in agent time, it is a separate part of every bar in the overview, and it is left out of the slowest steps.
+- **No chart library.** React draws the timeline and the charts, so they follow the theme, work with the keyboard, and each bar is a real button or link. `d3-scale` is used only for axis arithmetic.
+- **Runs sent here stay in the browser.** The server has no database, and a run is saved the moment the page is left, not only after a short wait.
+- **Nothing costs money.** No model, no key, no paid service.
 
-### The GitHub bot's adapter
+## Checks
 
-Agent Desk and the GitHub bot are one program (Patch and Pitch, two agents that run jobs and log an event for everything they do). `src/sources/agentdesk/adapt.ts`:
-
-- Consecutive `run.step` events with the same step name become one **phase**, from the first of them to the start of the next.
-- Each `tool.result` is a **call**, drawn inside the phase that was running when it was logged. A call is logged when it ends, with how long it took, so it began that long before its stamp.
-- Findings, proposals, messages and errors are **marks** on that phase.
-
-**What the real data showed.** In the scheduled job's runs, a call can be logged *after* the run it belongs to began: 48 of the 78 calls in the recorded runs began before their run's first event. Drawing them at their true length would put them before the start of the run, so the bar is cut at the start, marked as estimated, and the panel says how long the call really took and how much of it falls before the run was recorded. Nothing is stretched to make the picture tidy.
-
-**Something it found.** Reading the bot's 54 runs side by side shows that 25 of its 78 GitHub requests were answered `403`. The cause is in the bot's own code (`list_repos` in `sync.py`): the token a scheduled GitHub Actions job is given cannot list a user's repositories through `/user/repos`, so the bot is refused and asks for the public list instead. It remembers a refusal only for the length of one process, and the job starts a new process for every run, so it asks, and is refused, on every scheduled audit. The bot treats that as normal and the run succeeds. Hindsight shows each refusal as a failed call inside a run that succeeded, which is what an observer is for.
+- 251 unit tests, against real runs where there are real runs: the adapters, the receiver, the time scale and its inverse, the way time is counted without counting twice, the view state, the statistics, the store.
+- 91 end-to-end tests in a real browser: every page, the hand-over from a stand-in for each app's page (including a page that is not allowed, and an app sending as another), the file drop, the keyboard, playback, and axe accessibility scans of every page in both themes and at phone width.
+- CI runs lint, the type check, the unit tests, the build and the end-to-end tests; builds the Docker image, starts it and asks it for its pages; and applies `deploy/k8s.yaml` to a real cluster (kind) and checks both pods come up under the manifest's security settings.
+- The end-to-end tests found two real faults while this was built: a run saved 250 ms after it arrived was lost if the page was reloaded inside that wait (it is now saved when the page is left), and a link inside running text that was told apart only by colour (it is underlined).
 
 ## Run it
 
@@ -65,25 +89,21 @@ npm run dev        # http://localhost:3040
 |---|---|
 | `npm run lint` | ESLint |
 | `npm run typecheck` | Next's route types, then `tsc` |
-| `npm test` | Vitest: adapters, schema, filters, statistics, the store |
-| `npm run build` then `CI=1 npm run e2e` | Playwright against the production build, with axe scans in both themes and at phone width |
-| `node scripts/record-apps.mjs [sayso|flowboard]` | Drives the running apps in a browser, presses their button, and saves what they hand over to `src/samples` |
-| `node scripts/record-github-bot.mjs` | Records the bot's runs from its public snapshot into `src/samples/github-bot.json` |
+| `npm test` | Vitest |
+| `npm run build` then `CI=1 npm run e2e` | Playwright against the production build |
+| `npm run screenshots`, `npm run gif` | Retake the pictures in this README (a production build must be running with `HINDSIGHT_SNAPSHOT_URL` pointed at nothing, so it uses the recorded runs) |
+| `node scripts/record-apps.mjs [sayso\|flowboard]` | Drives the running apps in a browser, presses their button, and saves what they hand over to `src/samples` |
+| `node scripts/record-github-bot.mjs` | Records the bot's runs from its public snapshot |
+| `node scripts/check-buttons.mjs` | Presses each app's button on the web and checks that Hindsight opens the run |
 | `node scripts/look.mjs [path] [light\|dark] [width] [name]` | Opens a page in a real browser and saves a picture |
 
-The server reads the bot's snapshot from `raw.githubusercontent.com`. If it cannot be reached, it answers with the copy recorded in `src/samples/github-bot.json` and says so on the page. The tests point the server at an address with nothing at it, so they always read the same 54 recorded runs and never touch the network.
-
-## Decisions
-
-- **The format is the contract.** Pages read traces, adapters write them, and an adapter is a plain function tested against real data copied from its app. Adding a fifth app means writing one adapter.
-- **Colour means kind of time, and nothing else.** Three kinds of time are worth telling apart at a glance (model, API call, waiting for a person) and take the first three hues of a palette checked for colour-blind separation against both themes' surfaces. Everything else the app does is grey, because it is not an identity. Failures and estimates are not colours: a failed bar has a red underline and an icon, an estimated one has stripes.
-- **No chart library.** React draws the timeline, so it follows the theme, works with the keyboard, and each bar is a real button. `d3-scale` is used only for the axis arithmetic.
-- **Runs sent here stay in the browser.** Nothing is uploaded; the server has no database.
-- **Nothing costs money.** No model, no key, no paid service.
+The server reads the bot's snapshot from `raw.githubusercontent.com`. If it cannot be reached, it answers with the copy recorded in `src/samples/github-bot.json` and says so on the page. The tests point the server at an address with nothing at it, so they always read the same recorded runs and never touch the network. `docker compose up --build` runs it in a container; `deploy/k8s.yaml` is a manifest for two copies behind a Service.
 
 ## Limits
 
 - The bot's snapshot lists its newest 100 runs, and Hindsight shows all of them.
 - The recordings of Sayso and Flowboard were made against stand-ins for the outside services those apps call (the weather, a ticket system, a model provider), which answered after a delay, so recording needs no keys and no network. The apps, their journeys and the times are real; the replies they got are not.
 - A run sent from an app lives in the browser it was sent to. A link to it works there and nowhere else.
-- The timeline is plain: no zoom, no playback, and the keyboard reaches bars but not the marks on them yet (a list of a step's marks is in the panel).
+- Cost in money and confidence scores are not shown, because none of the four apps records either. Model calls and tokens are shown where an app reports them.
+- Agent time squeezes waits for a person only. A run with none looks the same in both clocks.
+- The timeline's playback walks the run at an even pace; it is not a replay of the screen the person saw, but of what was said to them and what was going on.
