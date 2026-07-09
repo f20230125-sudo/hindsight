@@ -52,6 +52,33 @@ describe("reading a run an app wrote", () => {
 
     it("an app it does not read", () => {
       expect(refusal({ format: ENVELOPE_FORMAT, version: 1, app: "excel", data: {} })).toBe('"excel" is not an app Hindsight reads. It reads Sayso, Flowboard, Agent Desk.');
+      // A name from outside is said back only in part.
+      expect(refusal({ format: ENVELOPE_FORMAT, version: 1, app: "x".repeat(5000), data: {} })).toHaveLength(`"${"x".repeat(40)}…" is not an app Hindsight reads. It reads Sayso, Flowboard, Agent Desk.`.length);
+    });
+
+    it("data nested deeper than any app writes, however deep, without falling over", () => {
+      const nested = (levels: number) => {
+        let value: unknown = "the bottom";
+        for (let level = 0; level < levels; level += 1) value = [value];
+        return value;
+      };
+      const flowboardRun = flowboard.data as { flow: unknown; run: { steps: object[] } };
+      const holding = (output: unknown) => ({
+        format: ENVELOPE_FORMAT,
+        version: 1,
+        app: "flowboard",
+        data: { ...flowboardRun, run: { ...flowboardRun.run, steps: flowboardRun.run.steps.map((step, index) => (index === 0 ? { ...step, output } : step)) } },
+      });
+
+      // Twenty levels is ordinary data and is kept.
+      expect(readEnvelope(holding(nested(20)), "file", AT).ok).toBe(true);
+      // A hundred levels, which the checks could walk, and a hundred thousand, which they could not.
+      for (const levels of [100, 100_000]) {
+        expect(refusal(holding(nested(levels)))).toBe("This run holds data nested more than 64 levels deep, which no app writes.");
+      }
+      // As the text of a file, too.
+      const text = JSON.stringify(holding("HERE")).replace('"HERE"', `${"[".repeat(100_000)}1${"]".repeat(100_000)}`);
+      expect(readText(text, "file", AT).ok).toBe(false);
     });
 
     it("an app's run that is not in the shape that app writes, naming where it goes wrong", () => {
@@ -91,6 +118,31 @@ describe("a message from another page", () => {
     expect(acceptMessage(message(SAYSO_SITE, sayso, null), null, AT)).toEqual({ kind: "ignore" });
     // Hindsight's own address is not on the list, so a page cannot send itself a run.
     expect(acceptMessage(message("http://localhost:3040", sayso), opener, AT)).toEqual({ kind: "ignore" });
+    // Nor is a word that every object answers to, or a page with no address of its own.
+    for (const origin of ["constructor", "__proto__", "toString", "hasOwnProperty", "null", ""]) {
+      expect(acceptMessage(message(origin, sayso), opener, AT)).toEqual({ kind: "ignore" });
+    }
+    // A site that only begins like an allowed one is another site.
+    expect(acceptMessage(message(`${SAYSO_SITE}.evil.example`, sayso), opener, AT)).toEqual({ kind: "ignore" });
+    expect(acceptMessage(message("http://sayso-sigma.vercel.app", sayso), opener, AT)).toEqual({ kind: "ignore" });
+  });
+
+  it("is read as the JSON a file would hold, so what a message alone can carry does no harm", () => {
+    // An object that holds itself cannot be written out, and is refused.
+    const circular: Record<string, unknown> = { format: ENVELOPE_FORMAT, version: 1, app: "sayso", data: {} };
+    circular.data = { self: circular };
+    expect(acceptMessage(message(SAYSO_SITE, circular), opener, AT)).toEqual({ kind: "refused", reason: "The run could not be read." });
+
+    // A date inside a run arrives as the text JSON makes of it, and the run is read as usual.
+    const run = sayso.data as { calls: object[] };
+    const withDate = { ...sayso, data: { ...run, calls: run.calls.map((call) => ({ ...call, result: { at: new Date("2026-10-07T12:00:00.000Z") } })) } };
+    const accepted = acceptMessage(message(SAYSO_SITE, withDate), opener, AT);
+    expect(accepted.kind).toBe("received");
+    if (accepted.kind === "received") {
+      const outputs = accepted.trace.spans.filter((span) => span.kind === "tool").map((span) => span.output);
+      expect(outputs.length).toBeGreaterThan(0);
+      for (const output of outputs) expect(output).toEqual({ at: "2026-10-07T12:00:00.000Z" });
+    }
   });
 
   it("is ignored when it is not a run, whoever sent it", () => {
