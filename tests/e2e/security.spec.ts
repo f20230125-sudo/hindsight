@@ -4,6 +4,8 @@ import { AUDIT_PATH, SAYSO_PATH, detail, openRun, recorded, timeline } from "./h
 // What keeps a visitor safe: the headers every page is sent with, pages that
 // keep to them, and text from a run being drawn as text whatever it says.
 
+const PORTFOLIO = "https://uzair-khan-lac.vercel.app";
+
 const PAGES = ["/", AUDIT_PATH, `${SAYSO_PATH}?time=agent`, "/overview", "/sources", "/open"];
 
 test("every page, and the data behind it, is sent with the headers that fence it in", async ({ request }) => {
@@ -13,15 +15,19 @@ test("every page, and the data behind it, is sent with the headers that fence it
     const headers = response.headers();
 
     const policy = headers["content-security-policy"] ?? "";
-    for (const rule of ["default-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'none'"]) {
+    // Only Uzair's portfolio may show Hindsight in a frame (it runs in a window there).
+    for (const rule of ["default-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'self'", `frame-ancestors 'self' ${PORTFOLIO}`]) {
       expect(policy, `${path}: ${rule}`).toContain(rule);
     }
+    expect(policy, path).not.toContain("frame-ancestors *");
     // The built app runs no code made from text. (The development server needs to, for fast refresh.)
     if (process.env.CI) expect(policy, path).not.toContain("unsafe-eval");
-    // Nothing from another site: no address is named anywhere in the policy.
-    expect(policy, path).not.toMatch(/https?:/);
+    // Nothing from another site: the only address named in the policy is the
+    // portfolio that may frame Hindsight.
+    expect(policy.replace(PORTFOLIO, ""), path).not.toMatch(/https?:/);
 
-    expect(headers["x-frame-options"], path).toBe("DENY");
+    // The older header cannot name one other site, so it is left out; the policy does it.
+    expect(headers["x-frame-options"], path).toBeUndefined();
     expect(headers["x-content-type-options"], path).toBe("nosniff");
     expect(headers["referrer-policy"], path).toBe("strict-origin-when-cross-origin");
     expect(headers["permissions-policy"], path).toContain("camera=()");
