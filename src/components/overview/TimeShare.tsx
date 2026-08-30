@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Duration } from "@/components/Duration";
 import { SourceChip } from "@/components/Chips";
 import { CATEGORY_FILL, CATEGORY_LABELS, type Category } from "@/timeline/look";
 import { timeBySource, type Share, type SourceTime } from "@/stats/time";
@@ -14,17 +15,18 @@ import { ChartCard, DataTable } from "./ChartCard";
 
 const ORDER: (Category | "none")[] = ["model", "call", "wait", "own", "none"];
 const LABELS: Record<Category | "none", string> = { ...CATEGORY_LABELS, none: "Between steps" };
-const FILL: Record<Category | "none", string> = { ...CATEGORY_FILL, none: "bg-line-strong" };
+// The time between steps is nothing's colour: the edge colour, half faded.
+const FILL: Record<Category | "none", string> = { ...CATEGORY_FILL, none: "bg-edge/50" };
 
 const percent = (part: number, whole: number) => (whole === 0 ? 0 : (part / whole) * 100);
 const shown = (value: number) => (value > 0 && value < 1 ? "under 1%" : `${Math.round(value)}%`);
 
 function Legend() {
   return (
-    <ul className="mb-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-muted" aria-label="What the colours mean">
+    <ul className="mb-4 flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px] text-ink-2" aria-label="What the colours mean">
       {ORDER.map((key) => (
         <li key={key} className="flex items-center gap-1.5">
-          <span className={`inline-block h-2.5 w-4 rounded-[3px] ${FILL[key]}`} aria-hidden="true" />
+          <span className={`inline-block h-2.5 w-4 rounded-bar ${FILL[key]}`} aria-hidden="true" />
           {LABELS[key]}
         </li>
       ))}
@@ -37,24 +39,27 @@ function Row({ entry }: { entry: SourceTime }) {
   const present = ORDER.filter((key) => entry.share[key] > 0);
   const summary = `${SOURCE_LABELS[entry.source]}: ${present.map((key) => `${shown(percent(entry.share[key], total))} ${LABELS[key].toLowerCase()}`).join(", ")}`;
   return (
-    <li className="grid gap-x-5 gap-y-1.5 sm:grid-cols-[11.5rem_minmax(0,1fr)] sm:items-center">
+    <li className="grid gap-x-5 gap-y-1 sm:grid-cols-[var(--gutter)_minmax(0,1fr)] sm:items-center">
       <div>
         <SourceChip source={entry.source} />
-        <p className="mt-0.5 text-[12px] text-faint">
-          {plural(entry.runs, "run")}, {formatMs(entry.totalMs)} in all
+        <p className="mt-0.5 text-[12.5px] text-ink-3">
+          {plural(entry.runs, "run")}, <Duration ms={entry.totalMs} /> in all
         </p>
       </div>
       <div>
-        <Link href={`/?source=${entry.source}`} aria-label={`${summary}. Show these runs.`} className="flex h-5 gap-[2px] overflow-hidden rounded-[4px] bg-surface">
-          {present.map((key) => (
-            <span key={key} className={`block ${FILL[key]}`} style={{ width: `${percent(entry.share[key], total)}%`, minWidth: 3 }} />
-          ))}
+        {/* The bar is 16 px; the link around it is 28 px high, so it can be pressed. */}
+        <Link href={`/?source=${entry.source}`} aria-label={`${summary}. Show these runs.`} className="flex h-7 items-center rounded-bar">
+          <span className="flex h-[var(--bar)] w-full gap-[2px] overflow-hidden rounded-bar bg-paper">
+            {present.map((key) => (
+              <span key={key} className={`block ${FILL[key]}`} style={{ width: `${percent(entry.share[key], total)}%`, minWidth: 3 }} />
+            ))}
+          </span>
         </Link>
-        <ul className="mt-1.5 flex flex-wrap gap-x-4 gap-y-0.5 text-[12px] text-muted">
+        <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-[12.5px] text-ink-2">
           {present.map((key) => (
             <li key={key} className="flex items-center gap-1.5">
-              <span className={`inline-block h-2 w-2 rounded-[2px] ${FILL[key]}`} aria-hidden="true" />
-              {LABELS[key]} <span className="tabular text-fg">{shown(percent(entry.share[key], total))}</span>
+              <span className={`inline-block h-2 w-2 rounded-bar ${FILL[key]}`} aria-hidden="true" />
+              {LABELS[key]} <span className="tabular text-ink">{shown(percent(entry.share[key], total))}</span>
             </li>
           ))}
         </ul>
@@ -83,11 +88,11 @@ export function TimeShare({ traces }: { traces: Trace[] }) {
       }
     >
       {rows.length === 0 ? (
-        <p className="text-[14px] text-muted">No runs to add up.</p>
+        <p className="text-[14px] text-ink-2">No runs to add up.</p>
       ) : (
         <>
           <Legend />
-          <ul className="flex flex-col gap-4">
+          <ul className="flex flex-col gap-3">
             {rows.map((entry) => (
               <Row key={entry.source} entry={entry} />
             ))}

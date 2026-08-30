@@ -1,10 +1,10 @@
 "use client";
 
 import { CircleAlert } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent, type KeyboardEvent, type PointerEvent, type RefObject } from "react";
 import { CATEGORY_FILL, CATEGORY_OF, KIND_LABELS, SPAN_STATUS_LABELS } from "@/timeline/look";
 import { clusterMarkers, layoutOf, placeOn, type Cluster } from "@/timeline/rows";
-import { axisTicks, type Scale } from "@/timeline/scale";
+import { axisTicks, type Scale, type Tick } from "@/timeline/scale";
 import { formatMs, formatOffset, formatTick } from "@/trace/format";
 import type { Span, Trace } from "@/trace/schema";
 import { KIND_ICONS } from "./kinds";
@@ -29,10 +29,18 @@ type Props = {
   playhead: number | null;
   /** The traveller pointed at the time axis. */
   onPlayhead: (ms: number) => void;
+  /** Whether the bars are still drawing themselves in: true only for a run that has just opened. */
+  drawing?: boolean;
 };
 
 /** Marks closer together than this on the track are drawn as one. */
 const CLUSTER_PX = 16;
+
+/** The longest a bar waits before it draws, so that the whole run is in within 700 ms (a bar takes 360 ms). */
+const DRAW_SPREAD_MS = 340;
+
+/** The ruler's height, and so where the rows begin. */
+const RULER_PX = 34;
 
 function useElementWidth(ref: RefObject<HTMLElement | null>): number {
   const [width, setWidth] = useState(800);
@@ -47,36 +55,56 @@ function useElementWidth(ref: RefObject<HTMLElement | null>): number {
   return width;
 }
 
+/**
+ * The small ticks between the labelled ones, drawn from the same scale: four between each pair of
+ * labels, or three when the labels are 2, 20, 200 apart. None across a squeezed wait, whose time takes
+ * no room on the axis, and none where the labels are too close for them to be told apart.
+ */
+function minorTicks(ticks: Tick[], scale: Scale, width: number): number[] {
+  const positions: number[] = [];
+  for (let at = 0; at + 1 < ticks.length; at += 1) {
+    const [from, to] = [ticks[at], ticks[at + 1]];
+    if ((to.x - from.x) * width < 48) continue;
+    if (scale.breaks.some((gap) => gap.from < to.ms && gap.to > from.ms)) continue;
+    const gap = to.ms - from.ms;
+    const mantissa = gap / Math.pow(10, Math.floor(Math.log10(gap)));
+    const parts = Math.abs(mantissa - 2) < 0.01 ? 4 : 5;
+    for (let part = 1; part < parts; part += 1) positions.push(scale.x(from.ms + (gap * part) / parts));
+  }
+  return positions;
+}
+
 /** What shows when a bar or mark is hovered or focused: the length first, since it is what the eye came for. */
 function Tip({ span, align }: { span: Span; align: "left" | "right" }) {
   return (
     <span
       role="tooltip"
-      className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[260px] rounded-lg border border-line bg-surface px-2.5 py-2 text-left shadow-lift group-hover:block group-has-[:focus-visible]:block ${
+      className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[260px] rounded-control border border-rule bg-paper px-2.5 py-2 text-left shadow-tip group-hover:block group-has-[:focus-visible]:block ${
         align === "right" ? "right-0" : "left-0"
       }`}
     >
-      {span.durationMs > 0 ? <span className="tabular block text-[13px] font-semibold text-fg">{formatMs(span.durationMs)}</span> : null}
-      <span className="block break-words text-[12.5px] leading-snug text-fg">{span.name}</span>
-      <span className="mt-0.5 block text-[12px] leading-snug text-muted">
-        {KIND_LABELS[span.kind]} · {SPAN_STATUS_LABELS[span.status]} · {formatOffset(span.startMs)}
+      {span.durationMs > 0 ? <span className="tabular block text-[13px] font-semibold text-ink">{formatMs(span.durationMs)}</span> : null}
+      <span className="block break-words text-[12.5px] leading-snug text-ink">{span.name}</span>
+      <span className="mt-0.5 block text-[12.5px] leading-snug text-ink-2">
+        {KIND_LABELS[span.kind]}, {SPAN_STATUS_LABELS[span.status].toLowerCase()}, {formatOffset(span.startMs)}
       </span>
-      {span.timing === "estimated" ? <span className="block text-[12px] text-faint">Worked out from the log</span> : null}
+      {span.timing === "estimated" ? <span className="block text-[12.5px] text-ink-3">Worked out from the log</span> : null}
     </span>
   );
 }
 
 /** What a button in the timeline needs to take part in moving about with the arrow keys. */
-type Roving = { item: string; tabIndex: number; onFocus: () => void };
+type Roving = { item: string; tabIndex: number; onFocus: (event: FocusEvent<HTMLElement>) => void };
 
 type Placed = { span: Span; left: number; right: number };
 
-function BarButton({ placed, selected, roving, onSelect }: { placed: Placed; selected: boolean; roving: Roving; onSelect: () => void }) {
+function BarButton({ placed, selected, roving, onSelect, drawDelay }: { placed: Placed; selected: boolean; roving: Roving; onSelect: () => void; drawDelay: number | null }) {
   const { span, left, right } = placed;
   const fill = CATEGORY_FILL[CATEGORY_OF[span.kind]];
   const dim = span.status === "skipped" || span.status === "stopped";
   return (
-    <span className="group absolute top-1/2 -translate-y-1/2" style={{ left: `${left * 100}%`, width: `max(${(right - left) * 100}%, 5px)` }}>
+    <span className="group bar-move absolute top-1/2 -translate-y-1/2" style={{ left: `${left * 100}%`, width: `max(${(right - left) * 100}%, 5px)` }}>
+      {/* The bar is 16 px high; the button reaches 28 px high and at least 24 px wide, so a thin bar can still be pressed. */}
       <button
         type="button"
         data-item={roving.item}
@@ -87,9 +115,12 @@ function BarButton({ placed, selected, roving, onSelect }: { placed: Placed; sel
         aria-label={`${span.name}. ${KIND_LABELS[span.kind]}, ${SPAN_STATUS_LABELS[span.status].toLowerCase()}. Starts ${formatOffset(span.startMs)}, took ${formatMs(span.durationMs)}.${
           span.timing === "estimated" ? " Worked out from the log." : ""
         }`}
-        className={`block h-[14px] w-full rounded-[4px] ${fill} ${span.timing === "estimated" ? "hatched" : ""} ${dim ? "opacity-55" : ""} ${
-          span.status === "failed" ? "shadow-[inset_0_-3px_0_var(--bad)]" : ""
-        } ${selected ? "outline-2 outline-offset-2 outline-fg" : ""}`}
+        style={drawDelay === null ? undefined : ({ "--draw-delay": `${drawDelay}ms` } as CSSProperties)}
+        className={`relative block h-[var(--bar)] w-full rounded-bar before:absolute before:left-1/2 before:top-1/2 before:h-[var(--hit)] before:w-full before:min-w-6 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] ${fill} ${
+          span.timing === "estimated" ? "hatched" : ""
+        } ${dim ? "opacity-55" : ""} ${span.status === "failed" ? "shadow-[inset_0_-3px_0_var(--fail)]" : ""} ${selected ? "outline-2 outline-offset-2 outline-ink" : ""} ${
+          drawDelay === null ? "" : "draw-in"
+        }`}
       />
       <Tip span={span} align={left > 0.6 ? "right" : "left"} />
     </span>
@@ -98,7 +129,7 @@ function BarButton({ placed, selected, roving, onSelect }: { placed: Placed; sel
 
 function MarkButton({ span, at, selected, roving, onSelect }: { span: Span; at: number; selected: boolean; roving: Roving; onSelect: () => void }) {
   return (
-    <span className="group absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${at * 100}%` }}>
+    <span className="group bar-move absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${at * 100}%` }}>
       <button
         type="button"
         data-item={roving.item}
@@ -107,9 +138,9 @@ function MarkButton({ span, at, selected, roving, onSelect }: { span: Span; at: 
         onClick={onSelect}
         aria-pressed={selected}
         aria-label={`${span.name}, ${formatOffset(span.startMs)}`}
-        className={`relative block h-[10px] w-[10px] rotate-45 rounded-[2px] ring-2 ring-surface before:absolute before:-inset-2 before:content-[''] ${
-          span.status === "failed" ? "bg-bad" : selected ? "bg-accent" : CATEGORY_OF[span.kind] === "own" ? "bg-fg/70" : CATEGORY_FILL[CATEGORY_OF[span.kind]]
-        } ${selected ? "scale-125" : ""}`}
+        className={`relative block h-[10px] w-[10px] rotate-45 rounded-bar ring-2 ring-paper before:absolute before:-inset-2 before:content-[''] ${
+          span.status === "failed" ? "bg-fail" : CATEGORY_OF[span.kind] === "own" ? "bg-ink" : CATEGORY_FILL[CATEGORY_OF[span.kind]]
+        } ${selected ? "outline-2 outline-offset-4 outline-ink" : ""}`}
       />
       <Tip span={span} align={at > 0.6 ? "right" : "left"} />
     </span>
@@ -119,7 +150,7 @@ function MarkButton({ span, at, selected, roving, onSelect }: { span: Span; at: 
 function ClusterButton({ cluster, at, selected, roving, onSelect }: { cluster: Cluster; at: number; selected: boolean; roving: Roving; onSelect: () => void }) {
   const failed = cluster.items.filter((item) => item.status === "failed").length;
   return (
-    <span className="group absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${at * 100}%` }}>
+    <span className="group bar-move absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: `${at * 100}%` }}>
       <button
         type="button"
         data-item={roving.item}
@@ -128,20 +159,21 @@ function ClusterButton({ cluster, at, selected, roving, onSelect }: { cluster: C
         onClick={onSelect}
         aria-pressed={selected}
         aria-label={`${cluster.items.length} things happened close together from ${formatOffset(cluster.at)}${failed > 0 ? `, ${failed} failed` : ""}`}
-        className={`tabular relative flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-semibold ring-1 before:absolute before:-inset-1.5 before:content-[''] ${
-          selected ? "bg-fg text-bg ring-fg" : "bg-surface-2 text-fg ring-line-strong"
-        } ${failed > 0 ? "shadow-[inset_0_-2px_0_var(--bad)]" : ""}`}
+        // The one round mark: a crowd is a different thing from a single moment, which is a diamond.
+        className={`tabular relative flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-semibold ring-1 before:absolute before:-inset-1.5 before:content-[''] ${
+          selected ? "bg-ink text-paper ring-ink" : "bg-paper-2 text-ink ring-edge"
+        } ${failed > 0 ? "shadow-[inset_0_-2px_0_var(--fail)]" : ""}`}
       >
         {cluster.items.length}
       </button>
       <span
         role="tooltip"
-        className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[260px] rounded-lg border border-line bg-surface px-2.5 py-2 text-left shadow-lift group-hover:block group-has-[:focus-visible]:block ${
+        className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[260px] rounded-control border border-rule bg-paper px-2.5 py-2 text-left shadow-tip group-hover:block group-has-[:focus-visible]:block ${
           at > 0.6 ? "right-0" : "left-0"
         }`}
       >
         <span className="block text-[13px] font-semibold">{cluster.items.length} close together</span>
-        <span className="block text-[12px] text-muted">{cluster.items[0].name}, and more. Choose to list them.</span>
+        <span className="block text-[12.5px] text-ink-2">{cluster.items[0].name}, and more. Choose to list them.</span>
       </span>
     </span>
   );
@@ -157,32 +189,33 @@ type RowModel = {
 };
 
 function RowLabel({ row }: { row: RowModel }) {
-  if (!row.span) return <span className="text-[13px] text-muted">The run</span>;
+  if (!row.span) return <span className="gutter-label text-ink-2">The run</span>;
   const Icon = KIND_ICONS[row.span.kind];
   return (
     <>
-      <Icon size={14} className="shrink-0 text-faint" aria-hidden="true" />
-      <span className="line-clamp-2 min-w-0 break-words text-[13px] leading-tight" title={row.span.name}>
+      <Icon size={14} className="shrink-0 text-ink-3" aria-hidden="true" />
+      <span className="gutter-label line-clamp-2 min-w-0 break-words leading-tight" title={row.span.name}>
         {row.span.name}
       </span>
       {row.span.status === "failed" ? (
         <>
-          <CircleAlert size={13} className="shrink-0 text-bad" aria-hidden="true" />
+          <CircleAlert size={13} className="shrink-0 text-fail" aria-hidden="true" />
           <span className="sr-only">(failed)</span>
         </>
       ) : null}
-      <span className="tabular ml-auto shrink-0 text-[12px] text-faint">{formatMs(row.span.durationMs)}</span>
+      <span className="tabular ml-auto shrink-0 text-[12px] text-ink-3">{formatMs(row.span.durationMs)}</span>
     </>
   );
 }
 
-export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhead }: Props) {
+export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhead, drawing = false }: Props) {
   const layout = useMemo(() => layoutOf(trace), [trace]);
   const trackRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLOListElement>(null);
   const width = useElementWidth(trackRef);
   const chosen = useMemo(() => new Set(selected), [selected]);
   const ticks = useMemo(() => axisTicks(scale, width), [scale, width]);
+  const minors = useMemo(() => minorTicks(ticks, scale, width), [ticks, scale, width]);
 
   // What is on the track: bars that overlap the window, and marks inside it.
   const model = useMemo<RowModel[]>(() => {
@@ -217,10 +250,24 @@ export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhea
   const itemsOf = (row: RowModel) => (row.bar ? 1 : 0) + row.marks.length;
   const counts = model.map(itemsOf);
   const at = placeOn(counts, cursor.row, cursor.col);
+  const focused = useRef<HTMLElement | null>(null);
   const roving = (row: number, col: number): Roving => ({
     item: `${row}-${col}`,
     tabIndex: at.row === row && at.col === col ? 0 : -1,
-    onFocus: () => setCursor({ row, col }),
+    onFocus: (event) => {
+      focused.current = event.currentTarget;
+      setCursor({ row, col });
+    },
+  });
+
+  // Zooming, moving along or switching the clock can take away the very bar the keys were on (it is
+  // no longer on the track). The browser then puts focus on the page, and the keys do nothing. So
+  // when the place the keys were is gone, they are put on the nearest item that is on show.
+  useLayoutEffect(() => {
+    const was = focused.current;
+    if (!was || was.isConnected || document.activeElement !== document.body) return;
+    focused.current = null;
+    listRef.current?.querySelector<HTMLElement>(`[data-item="${at.row}-${at.col}"]`)?.focus();
   });
 
   const move = (next: { row: number; col: number }, direction: 1 | -1 = 1) => {
@@ -283,16 +330,19 @@ export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhea
     });
 
   const nothingShown = model.every((row) => row.bar === null && row.marks.length === 0);
+  // When a bar begins to draw: by where in the run it starts, so the run is drawn in the order it happened.
+  const delayOf = (span: Span) => (drawing ? Math.round((Math.min(span.startMs, trace.durationMs) / Math.max(1, trace.durationMs)) * DRAW_SPREAD_MS) : null);
 
   return (
-    <div className="relative [--label:0px] sm:[--label:min(15rem,36%)]">
-      {/* The time axis. Pointing at it moves the playhead; the slider under the timeline does the same for the keyboard. */}
+    <div className="relative [--label:0px] sm:[--label:min(var(--gutter),36%)]">
+      {/* The ruler. Pointing at it moves the playhead; the slider under the timeline does the same for the keyboard. */}
       <div className="grid grid-cols-[var(--label)_1fr]">
         <div />
         <div
           ref={trackRef}
           data-testid="time-axis"
-          className="relative h-8 cursor-col-resize touch-none select-none"
+          className="relative cursor-col-resize touch-none select-none border-b border-ink-3"
+          style={{ height: RULER_PX }}
           aria-hidden="true"
           onPointerDown={(event) => {
             event.currentTarget.setPointerCapture(event.pointerId);
@@ -302,10 +352,16 @@ export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhea
             if (event.buttons === 1) pointAt(event);
           }}
         >
+          {minors.map((position, index) => (
+            <span key={index} className="absolute bottom-0 h-1 w-px bg-ink-3" style={{ left: `${position * 100}%` }} />
+          ))}
+          {ticks.map((tick) => (
+            <span key={`major-${tick.ms}`} className="absolute bottom-0 h-2 w-px bg-ink-3" style={{ left: `${tick.x * 100}%` }} />
+          ))}
           {ticks.map((tick) => (
             <span
               key={tick.ms}
-              className="tabular absolute top-1 whitespace-nowrap text-[11px] text-faint"
+              className="tabular absolute top-1 whitespace-nowrap text-[11px] text-ink-3"
               style={{ left: `${tick.x * 100}%`, transform: tick.x < 0.02 ? "none" : tick.x > 0.94 ? "translateX(-100%)" : "translateX(-50%)" }}
             >
               {formatTick(tick.ms)}
@@ -313,42 +369,51 @@ export function Timeline({ trace, scale, selected, onSelect, playhead, onPlayhea
           ))}
           {scale.breaks.map((gap) =>
             (gap.x1 - gap.x0) * width >= 54 ? (
-              <span key={gap.from} className="absolute bottom-0 top-5 flex items-center justify-center text-[10px] text-faint" style={{ left: `${gap.x0 * 100}%`, width: `${(gap.x1 - gap.x0) * 100}%` }}>
+              <span key={gap.from} className="absolute bottom-1 top-5 flex items-center justify-center text-[11px] text-ink-3" style={{ left: `${gap.x0 * 100}%`, width: `${(gap.x1 - gap.x0) * 100}%` }}>
                 {formatMs(gap.to - gap.from)}
               </span>
             ) : null,
           )}
-          {showPlayhead ? <span className="absolute bottom-0 h-2.5 w-2.5 -translate-x-1/2 rotate-45 rounded-[2px] bg-accent" style={{ left: `${playheadAt * 100}%` }} /> : null}
+          {showPlayhead ? <span className="absolute -bottom-[5px] h-2.5 w-2.5 -translate-x-1/2 rotate-45 rounded-bar bg-ink" style={{ left: `${playheadAt * 100}%` }} /> : null}
         </div>
       </div>
 
-      {/* Behind the bars: a hairline at each labelled time, a band where a wait was squeezed, and the playhead. */}
-      <div className="pointer-events-none absolute bottom-0 right-0 top-8" style={{ left: "var(--label)" }} aria-hidden="true">
+      {/* Behind the bars: the line where the run begins, a hairline at each labelled time, a band where a wait was squeezed, and the playhead. */}
+      <div className="pointer-events-none absolute bottom-0 right-0" style={{ left: "var(--label)", top: RULER_PX }} aria-hidden="true">
+        <span className="absolute inset-y-0 left-0 w-px bg-ink-3" />
         {scale.breaks.map((gap) => (
           <span key={gap.from} className="break-band absolute inset-y-0" style={{ left: `${gap.x0 * 100}%`, width: `${(gap.x1 - gap.x0) * 100}%` }} />
         ))}
         {ticks.map((tick) => (
-          <span key={tick.ms} className="absolute inset-y-0 w-px bg-line" style={{ left: `${tick.x * 100}%` }} />
+          <span key={tick.ms} className="absolute inset-y-0 w-px bg-rule" style={{ left: `${tick.x * 100}%` }} />
         ))}
-        {showPlayhead ? <span className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-accent" style={{ left: `${playheadAt * 100}%` }} /> : null}
+        {showPlayhead ? <span className="absolute inset-y-0 w-0.5 -translate-x-1/2 bg-ink" style={{ left: `${playheadAt * 100}%` }} /> : null}
       </div>
 
       <ol ref={listRef} aria-label="What happened, in order" className="relative" onKeyDown={onKeyDown}>
         {model.map((row, rowIndex) => (
-          <li key={row.key} className="flex min-h-10 flex-col border-t border-line/70 sm:grid sm:grid-cols-[var(--label)_1fr] sm:items-center">
+          <li key={row.key} className="flex min-h-11 flex-col border-t border-rule first:border-t-0 sm:grid sm:min-h-10 sm:grid-cols-[var(--label)_1fr] sm:items-center">
             <div className="flex min-w-0 items-center gap-2 pb-0.5 pr-3 pt-2 sm:py-1" style={{ paddingLeft: row.depth * 14 }}>
               <RowLabel row={row} />
             </div>
-            <div className="relative h-7 sm:h-10">
-              {row.bar ? <BarButton placed={row.bar} selected={selected.length === 1 && chosen.has(row.bar.span.id)} roving={roving(rowIndex, 0)} onSelect={() => onSelect([row.bar!.span.id])} /> : null}
+            <div className="relative h-8 sm:h-10">
+              {row.bar ? (
+                <BarButton
+                  placed={row.bar}
+                  selected={selected.length === 1 && chosen.has(row.bar.span.id)}
+                  roving={roving(rowIndex, 0)}
+                  onSelect={() => onSelect([row.bar!.span.id])}
+                  drawDelay={delayOf(row.bar.span)}
+                />
+              ) : null}
               {marksOf(row, rowIndex)}
             </div>
           </li>
         ))}
       </ol>
 
-      {model.length === 0 ? <p className="border-t border-line py-6 text-[14px] text-muted">This run logged nothing that has a place on a timeline.</p> : null}
-      {model.length > 0 && nothingShown ? <p className="border-t border-line py-6 text-[14px] text-muted">Nothing happened in the part of the run that is on show. Zoom out to see the rest.</p> : null}
+      {model.length === 0 ? <p className="border-t border-rule py-6 text-[14px] text-ink-2">This run logged nothing that has a place on a timeline.</p> : null}
+      {model.length > 0 && nothingShown ? <p className="border-t border-rule py-6 text-[14px] text-ink-2">Nothing happened in the part of the run that is on show. Zoom out to see the rest.</p> : null}
     </div>
   );
 }
