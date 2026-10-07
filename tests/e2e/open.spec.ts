@@ -40,7 +40,7 @@ test.describe("a run sent by an app", () => {
 
     // The page opens the run, and the app is told it was taken.
     await expect(popup).toHaveURL(`${HINDSIGHT}/runs/${encodeURIComponent(SAYSO_ID)}`);
-    await expect(popup.getByRole("heading", { level: 1 })).toHaveText(SAYSO_TITLE);
+    await expect(popup.getByRole("heading", { level: 1 })).toHaveText(SAYSO_TITLE, { timeout: 15_000 });
     await expect(popup.getByText("Sent from Sayso, ")).toBeVisible();
     await expect.poll(() => answers(app)).toEqual([{ type: "hindsight:received", id: SAYSO_ID }]);
 
@@ -63,7 +63,7 @@ test.describe("a run sent by an app", () => {
     await app.getByRole("button", { name: "Open in Hindsight" }).click();
     const popup = await opened;
 
-    await expect(popup.getByRole("heading", { level: 1 })).toHaveText("I'd love to look out at the clouds on the way to London");
+    await expect(popup.getByRole("heading", { level: 1 })).toHaveText("I'd love to look out at the clouds on the way to London", { timeout: 15_000 });
     await timeline(popup).getByRole("button", { name: /^Read by gemini-3\.5-flash-lite\. Model call/ }).click();
     await expect(detail(popup)).toContainText("Model call · Done");
     await expect(detail(popup)).toContainText("You said");

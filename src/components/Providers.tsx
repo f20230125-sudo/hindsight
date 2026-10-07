@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Provider } from "react-redux";
+import { saveWhenLeaving } from "@/store/leaving";
+import { saveReceived } from "@/store/persist";
 import { makeStore } from "@/store/store";
 import { start } from "@/store/thunks";
 import { ThemeProvider } from "./theme";
@@ -25,6 +27,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     store.dispatch(start());
   }, [store]);
+
+  // A run that arrived a moment ago is saved at once if the page is left before the usual wait is over.
+  useEffect(
+    () =>
+      saveWhenLeaving(window, document, () => {
+        const { runs } = store.getState();
+        if (runs.loaded) saveReceived(window.localStorage, runs.received);
+      }),
+    [store],
+  );
 
   return (
     <Provider store={store}>
