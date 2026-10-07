@@ -92,9 +92,11 @@ describe("layoutOf", () => {
 
 describe("clusterMarkers", () => {
   const marker = (id: string, startMs: number) => span(id, null, startMs, 0);
+  /** One pixel to the millisecond. */
+  const px = (ms: number) => ms;
 
   it("joins markers that are closer together than the gap, and keeps the rest apart", () => {
-    const clusters = clusterMarkers([marker("a", 0), marker("b", 4), marker("c", 9), marker("d", 100), marker("e", 101)], 10);
+    const clusters = clusterMarkers([marker("a", 0), marker("b", 4), marker("c", 9), marker("d", 100), marker("e", 101)], px, 10);
     expect(clusters.map((cluster) => [cluster.at, cluster.items.map((item) => item.id)])).toEqual([
       [0, ["a", "b", "c"]],
       [100, ["d", "e"]],
@@ -102,13 +104,20 @@ describe("clusterMarkers", () => {
   });
 
   it("measures from the first marker of a group, so a long chain does not grow without end", () => {
-    const clusters = clusterMarkers([marker("a", 0), marker("b", 8), marker("c", 16), marker("d", 24)], 10);
+    const clusters = clusterMarkers([marker("a", 0), marker("b", 8), marker("c", 16), marker("d", 24)], px, 10);
     expect(clusters.map((cluster) => cluster.items.length)).toEqual([2, 2]);
   });
 
   it("sorts markers by time first", () => {
-    const [cluster] = clusterMarkers([marker("late", 50), marker("early", 5)], 100);
+    const [cluster] = clusterMarkers([marker("late", 50), marker("early", 5)], px, 100);
     expect(cluster.items.map((item) => item.id)).toEqual(["early", "late"]);
+  });
+
+  it("goes by where markers fall on the track, not by time, so a squeezed wait does not hide a gap", () => {
+    // A wait is squeezed: two markers far apart in time but close on the track are drawn as one.
+    const squeezed = (ms: number) => (ms < 1000 ? ms : ms < 5000 ? 1000 + (ms - 1000) / 400 : ms - 3990);
+    const clusters = clusterMarkers([marker("a", 1100), marker("b", 4900)], squeezed, 16);
+    expect(clusters).toHaveLength(1);
   });
 });
 

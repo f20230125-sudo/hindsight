@@ -55,13 +55,14 @@ export type Cluster = {
 
 /**
  * Markers that would sit on top of each other are drawn as one, with a count.
- * `gapMs` is how far apart two markers must be to stay apart.
+ * `positionPx` says where a time falls on the track in pixels, so this holds
+ * for any scale; markers closer than `gapPx` to the first of a group join it.
  */
-export function clusterMarkers(markers: Span[], gapMs: number): Cluster[] {
+export function clusterMarkers(markers: Span[], positionPx: (ms: number) => number, gapPx: number): Cluster[] {
   const clusters: Cluster[] = [];
   for (const marker of [...markers].sort(byStart)) {
     const last = clusters.at(-1);
-    if (last && marker.startMs - last.at < gapMs) last.items.push(marker);
+    if (last && positionPx(marker.startMs) - positionPx(last.at) < gapPx) last.items.push(marker);
     else clusters.push({ at: marker.startMs, items: [marker] });
   }
   return clusters;

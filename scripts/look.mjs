@@ -35,7 +35,7 @@ page.on("pageerror", (error) => problems.push(String(error)));
 await page.goto(`${BASE}${path}`, { waitUntil: "networkidle" });
 if (process.env.CLICK) {
   await page.locator(process.env.CLICK).first().click();
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(Number(process.env.WAIT ?? 400));
 }
 await page.waitForTimeout(300);
 

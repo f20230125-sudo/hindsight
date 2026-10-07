@@ -163,6 +163,14 @@ body {
   background-image: repeating-linear-gradient(135deg, transparent 0 3px, color-mix(in oklab, var(--surface) 60%, transparent) 3px 5px);
 }
 
+/* Where a wait for a person was squeezed on the axis: a band across the rows,
+   so the reader sees the track is not a straight line there. */
+.break-band {
+  background-image: repeating-linear-gradient(135deg, color-mix(in oklab, var(--line-strong) 55%, transparent) 0 1px, transparent 1px 7px);
+  background-color: color-mix(in oklab, var(--surface-2) 70%, transparent);
+  border-inline: 1px dashed var(--line-strong);
+}
+
 /* How a new line or component arrives. */
 @keyframes rise-in {
   from {

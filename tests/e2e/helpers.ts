@@ -35,7 +35,7 @@ export const DESK_PATH = `/runs/${encodeURIComponent(`agent-desk:${(DESK_AUDIT.d
 
 export const runsTable = (page: Page) => page.getByRole("table", { name: "Runs, newest first" });
 export const timeline = (page: Page) => page.getByRole("list", { name: "What happened, in order" });
-export const detail = (page: Page) => page.getByRole("complementary", { name: "Selected span" });
+export const detail = (page: Page) => page.getByRole("complementary", { name: "Detail and moment" });
 
 /** Opens the list and waits until the runs have been read. */
 export async function openRuns(page: Page, query = "") {
