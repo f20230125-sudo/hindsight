@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const isDev = process.env.NODE_ENV === "development";
 
+/** The portfolio that shows Hindsight in a window. */
+const PORTFOLIO = "https://uzair-khan-lac.vercel.app";
+
 // What a page of Hindsight may load and reach. It is all its own: there are no
 // scripts, fonts or images from another site, and nothing but its own server is
 // asked for data. So a line of text from a run that somehow came to be treated
@@ -23,14 +26,16 @@ const contentSecurityPolicy = [
   "object-src 'none'",
   "base-uri 'self'",
   "form-action 'self'",
-  // No other site may show Hindsight inside a frame, so its buttons cannot be pressed through another page.
-  "frame-ancestors 'none'",
+  // Only Uzair's portfolio may show Hindsight inside a frame (it runs in a
+  // window there). No other site may, so its buttons cannot be pressed through
+  // another page.
+  `frame-ancestors 'self' ${PORTFOLIO}`,
 ].join("; ");
 
 const securityHeaders = [
   { key: "Content-Security-Policy", value: contentSecurityPolicy },
-  // The same, for browsers that read the older header.
-  { key: "X-Frame-Options", value: "DENY" },
+  // X-Frame-Options is left out: it can only say "nobody" or "this site", not
+  // "this one other site", and browsers that read both obey frame-ancestors.
   // A file is what its type says it is, and is never guessed to be a script.
   { key: "X-Content-Type-Options", value: "nosniff" },
   // Other sites are told which site a visitor came from, never which run they were looking at.
