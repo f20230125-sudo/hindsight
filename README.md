@@ -4,21 +4,35 @@
 
 It is a small version of an agent observer: one place to look when an agent did something and you want to know how.
 
-- Live: *(added when the site is deployed)*
+- Live: https://hindsight-sand.vercel.app
 - The apps it reads: [Sayso](https://github.com/f20230125-sudo/sayso), [Flowboard](https://github.com/f20230125-sudo/flowboard), [Agent Desk and the GitHub bot](https://github.com/f20230125-sudo/github-bot)
 
-## Where it stands
+## How each app gets its runs here
 
-| App | How its runs get here | State |
+| App | How | Where its runs come from before one is sent |
 |---|---|---|
-| GitHub bot | Read live from the file its scheduled job commits to GitHub | Working |
-| Agent Desk | A button on its run page sends the run here, inside your browser | Next |
-| Sayso | A button in its "How it worked" panel | Next |
-| Flowboard | A button in its Run panel | Next |
+| GitHub bot | Read live from the file its scheduled job commits to GitHub | The recorded copy, if GitHub cannot be reached |
+| Sayso | An **Open in Hindsight** button in its "How it worked" panel | 11 real runs, recorded by driving the app in a browser |
+| Flowboard | An **Open in Hindsight** button in its Run panel | 5 real runs, recorded the same way |
+| Agent Desk | An **Open in Hindsight** button on a run's page | 1 real audit from its backend, with GitHub answering for real |
+
+Runs that were recorded say so in the list, so a recording is never taken for a run that just happened.
+
+### Sending a run, with no server
+
+The button opens Hindsight's `/open` page in a new tab. That page tells the tab that opened it that it is ready (a message with nothing in it). The app answers with the run, addressed to Hindsight's origin alone, so no other page can read it. Hindsight keeps it in the browser and opens it. If the tab is blocked, or says nothing for five seconds, the app saves the run as a file, which can be dropped on the Sources page.
+
+Everything that arrives is checked, in `src/sources/receive.ts`:
+
+- it must come from the app's own page (a fixed list of addresses), and a page may send only as its own app;
+- it is read only from the tab that opened Hindsight's page, and anything else is ignored without a word;
+- it must be under 2 MB, say it is in the `hindsight/run` format, version 1, and fit the shape that app is known to write, or it is refused with the reason, in plain words.
+
+What each app sends is its own record of one run (Sayso: a turn with its plan, calls and a log of what happened and when; Flowboard: the blocks' names and kinds and the data that passed through them, never their settings, which can hold keys; Agent Desk: a run and its events). Adding an app means writing one adapter and adding its address to the list.
 
 ## What you can do
 
-- **See every run in one list**, newest first, with figures on top (how many, how many succeeded, the typical length, the slowest tenth). Filter by app, result and agent, or search. The filters live in the address, so any view is a link.
+- **See every run of every app in one list**, newest first, with figures on top (how many, how many succeeded, the typical length, the slowest tenth). Filter by app, result and agent, or search. The filters live in the address, so any view is a link.
 - **Open a run** to see it on a timeline. One bar per stretch of work, indented under the step that held it; things that happened at a moment are small marks. Blue is a model call, orange an API call, green waiting for a person, grey the app's own steps. Hover or focus a bar for its length; choose it for everything the app recorded.
 - **See what is certain and what is not.** A bar drawn with stripes has times that were worked out from the log, not measured, and the panel says why.
 
@@ -53,6 +67,7 @@ npm run dev        # http://localhost:3040
 | `npm run typecheck` | Next's route types, then `tsc` |
 | `npm test` | Vitest: adapters, schema, filters, statistics, the store |
 | `npm run build` then `CI=1 npm run e2e` | Playwright against the production build, with axe scans in both themes and at phone width |
+| `node scripts/record-apps.mjs [sayso|flowboard]` | Drives the running apps in a browser, presses their button, and saves what they hand over to `src/samples` |
 | `node scripts/record-github-bot.mjs` | Records the bot's runs from its public snapshot into `src/samples/github-bot.json` |
 | `node scripts/look.mjs [path] [light\|dark] [width] [name]` | Opens a page in a real browser and saves a picture |
 
@@ -68,6 +83,7 @@ The server reads the bot's snapshot from `raw.githubusercontent.com`. If it cann
 
 ## Limits
 
-- Only the GitHub bot's runs are read so far (see the table above).
-- The bot's snapshot keeps its recent runs; Hindsight shows the newest 60.
+- The bot's snapshot lists its newest 100 runs, and Hindsight shows all of them.
+- The recordings of Sayso and Flowboard were made against stand-ins for the outside services those apps call (the weather, a ticket system, a model provider), which answered after a delay, so recording needs no keys and no network. The apps, their journeys and the times are real; the replies they got are not.
+- A run sent from an app lives in the browser it was sent to. A link to it works there and nowhere else.
 - The timeline is plain: no zoom, no playback, and the keyboard reaches bars but not the marks on them yet (a list of a step's marks is in the panel).

@@ -14,8 +14,8 @@ import { runsFromSnapshot } from "./snapshot";
 export const SNAPSHOT_URL =
   process.env.HINDSIGHT_SNAPSHOT_URL ?? "https://raw.githubusercontent.com/f20230125-sudo/github-bot/main/frontend/public/showcase/snapshot.json";
 
-/** The newest runs only: the table and the charts do not need the job's whole history. */
-export const MAX_RUNS = 60;
+/** The most the bot's snapshot lists, so every run its own site links to can be opened here. */
+export const MAX_RUNS = 100;
 
 export type { Loaded };
 

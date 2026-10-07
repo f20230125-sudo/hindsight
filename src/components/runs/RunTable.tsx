@@ -5,6 +5,9 @@ import { TRACE_STATUS_LABELS } from "@/timeline/look";
 import { formatAgo, formatDateTime, formatMs, plural } from "@/trace/format";
 import type { Trace } from "@/trace/schema";
 
+/** A run that was not read live says how it got here, so a recording is never taken for a run that just happened. */
+const HOW_TAGS = { live: "", sample: "recorded", sent: "sent", file: "file" } as const;
+
 /** The runs, one to a row. The whole row opens the run; the title is the link that carries it. */
 export function RunTable({ traces, now }: { traces: Trace[]; now: number }) {
   return (
@@ -42,6 +45,7 @@ export function RunTable({ traces, now }: { traces: Trace[]; now: number }) {
                     {trace.title}
                   </Link>
                   {trace.agent ? <Tag>{trace.agent}</Tag> : null}
+                  {trace.origin.how !== "live" ? <Tag>{HOW_TAGS[trace.origin.how]}</Tag> : null}
                 </div>
                 {trace.summary ? <p className="mt-0.5 truncate text-[12.5px] text-muted">{trace.summary}</p> : null}
                 {/* On a narrow screen the columns that are hidden are said here. */}
