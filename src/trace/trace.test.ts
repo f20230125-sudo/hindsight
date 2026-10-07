@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatAgo, formatMs, formatOffset, percentile, plural } from "./format";
-import { toJson, toRecord } from "./json";
+import { MAX_DEPTH, nestsDeeperThan, toJson, toRecord } from "./json";
 import { traceSchema, type Span, type Trace } from "./schema";
 
 const span = (id: string, parentId: string | null = null): Span => ({
@@ -56,6 +56,17 @@ describe("the trace schema", () => {
     expect(traceSchema.safeParse({ ...trace([]), source: "excel" }).success).toBe(false);
     expect(traceSchema.safeParse(trace([{ ...span("a"), attributes: { when: new Date() as never } }])).success).toBe(false);
   });
+
+  it("refuses a time that is not a date, so nothing later has to wonder", () => {
+    for (const startedAt of ["yesterday", "", "2026-13-45T99:00:00Z"]) {
+      const checked = traceSchema.safeParse({ ...trace([]), startedAt });
+      expect(checked.success).toBe(false);
+      expect(checked.error?.issues[0]).toMatchObject({ path: ["startedAt"], message: "Not a date and time." });
+    }
+    expect(traceSchema.safeParse({ ...trace([]), origin: { how: "sent", at: "not a time" } }).success).toBe(false);
+    // A run may not say when it began at all.
+    expect(traceSchema.safeParse({ ...trace([]), startedAt: null }).success).toBe(true);
+  });
 });
 
 describe("toJson", () => {
@@ -65,6 +76,52 @@ describe("toJson", () => {
     expect(toRecord("text")).toEqual({});
     expect(toRecord(null)).toEqual({});
     expect(toRecord({ ok: true })).toEqual({ ok: true });
+  });
+
+  it("leaves out what is nested too deep, and can be given data of any depth", () => {
+    let deep: unknown = "the bottom";
+    for (let level = 0; level < 100_000; level += 1) deep = { inside: deep };
+
+    let at = toJson(deep);
+    let levels = 0;
+    while (at !== null && typeof at === "object" && !Array.isArray(at)) {
+      at = at.inside;
+      levels += 1;
+    }
+    expect(levels).toBe(MAX_DEPTH);
+    expect(at).toBe("…");
+  });
+
+  it("does not let a field called __proto__ change what an object is", () => {
+    const hostile = JSON.parse('{"name": "x", "__proto__": {"isAdmin": true}}');
+    const kept = toJson(hostile) as { [key: string]: unknown };
+    expect(kept).toEqual({ name: "x" });
+    expect(kept.isAdmin).toBeUndefined();
+    expect(Object.getPrototypeOf(kept)).toBe(Object.prototype);
+    expect(({} as { isAdmin?: boolean }).isAdmin).toBeUndefined();
+  });
+});
+
+describe("nestsDeeperThan", () => {
+  const nested = (levels: number) => {
+    let value: unknown = 1;
+    for (let level = 0; level < levels; level += 1) value = level % 2 === 0 ? [value] : { inside: value };
+    return value;
+  };
+
+  it("counts the levels of lists and objects", () => {
+    expect(nestsDeeperThan("text", 0)).toBe(false);
+    expect(nestsDeeperThan({ a: [1, 2, { b: 3 }] }, 3)).toBe(false);
+    expect(nestsDeeperThan({ a: [1, 2, { b: 3 }] }, 2)).toBe(true);
+    expect(nestsDeeperThan(nested(64), 64)).toBe(false);
+    expect(nestsDeeperThan(nested(65), 64)).toBe(true);
+  });
+
+  it("measures data far deeper than a function could follow, and data that holds itself", () => {
+    expect(nestsDeeperThan(nested(500_000), 64)).toBe(true);
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+    expect(nestsDeeperThan(circular, 64)).toBe(true);
   });
 });
 

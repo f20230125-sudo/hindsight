@@ -68,6 +68,25 @@ export function clusterMarkers(markers: Span[], positionPx: (ms: number) => numb
   return clusters;
 }
 
+export type Place = { row: number; col: number };
+
+/**
+ * Where the arrow keys can stand: a row, and a bar or mark on it. `counts` says
+ * how many of those each row has on show. A row can have none, when the part of
+ * the run on the track does not reach it, and such a row cannot be stood on: the
+ * nearest row that can is taken, looking the way the key was going first, and
+ * the other way if there is nothing that way.
+ */
+export function placeOn(counts: number[], row: number, col: number, direction: 1 | -1 = 1): Place {
+  const start = Math.max(0, Math.min(counts.length - 1, row));
+  const nearest = (from: number, step: 1 | -1): number | null => {
+    for (let at = from; at >= 0 && at < counts.length; at += step) if (counts[at] > 0) return at;
+    return null;
+  };
+  const found = nearest(start, direction) ?? nearest(start - direction, direction === 1 ? -1 : 1) ?? start;
+  return { row: found, col: Math.max(0, Math.min((counts[found] ?? 0) - 1, col)) };
+}
+
 /** Round numbers to put on the time axis, from 0 to the end of the run. */
 export function ticksFor(durationMs: number, target = 6): number[] {
   if (durationMs <= 0) return [0];

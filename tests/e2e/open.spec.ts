@@ -15,10 +15,16 @@ async function appAt(context: BrowserContext, address: string, envelope: unknown
       body: `<!doctype html><title>An app</title><button id="send">Open in Hindsight</button><script>
         const envelope = ${JSON.stringify(envelope)};
         window.__answers = [];
+        // Like the real button, it hands the run over once, however often it is told the page is ready.
+        // (The development server sets every page up twice, so there the page says so twice.)
+        let handedOver = false;
         window.addEventListener("message", (event) => {
           if (event.origin !== "${HINDSIGHT}") return;
-          if (event.data && event.data.type === "hindsight:ready") event.source.postMessage(envelope, event.origin);
-          else window.__answers.push(event.data);
+          if (event.data && event.data.type === "hindsight:ready") {
+            if (handedOver) return;
+            handedOver = true;
+            event.source.postMessage(envelope, event.origin);
+          } else window.__answers.push(event.data);
         });
         document.getElementById("send").onclick = () => window.open("${HINDSIGHT}/open", "hindsight");
       </script>`,

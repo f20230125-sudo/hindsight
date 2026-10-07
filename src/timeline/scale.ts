@@ -118,7 +118,10 @@ export function makeScale(spans: Span[], durationMs: number, mode: Mode, window:
     mode,
     window,
     x,
-    ms: (position) => at(low + position * span),
+    // The two ends are given, not worked out. Worked out, the end of the track
+    // can come back a hair short of the end of the run (45918.99999999999 for
+    // 45919), and whatever waits for the end would then never see it.
+    ms: (position) => (position === 0 ? window.from : position === 1 ? window.to : at(low + position * span)),
     breaks: stretches
       .filter((stretch) => stretch.squeezed && stretch.to > window.from && stretch.from < window.to)
       .map((stretch) => ({

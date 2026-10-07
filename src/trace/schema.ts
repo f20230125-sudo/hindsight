@@ -9,6 +9,14 @@ import { jsonSchema } from "./json";
 // same schema checks anything that arrives from outside (a run sent by another
 // app, a file dropped on the page, a copy kept in the browser's storage).
 
+// Zod can make its checks faster by building code from text, and finds out
+// whether it may by trying. The pages forbid code made from text (see
+// next.config.ts), so the try is refused, and the browser reports it as a
+// breach of the page's policy though nothing came of it. Told this, Zod does
+// not try. Nothing is checked while the modules are still loading, and every
+// module that checks a run loads this one, so this is always said in time.
+z.config({ jitless: true });
+
 export const SOURCES = ["sayso", "flowboard", "agent-desk", "github-bot"] as const;
 export type SourceName = (typeof SOURCES)[number];
 
@@ -47,6 +55,8 @@ export const MAX_SPANS = 3000;
 
 const text = (max: number) => z.string().max(max);
 const milliseconds = z.number().min(0).max(1e10);
+/** A date and time as text that a browser can read back, so nothing after this has to wonder. */
+const instant = text(40).refine((value) => !Number.isNaN(Date.parse(value)), "Not a date and time.");
 
 export const spanSchema = z.object({
   id: text(200),
@@ -79,7 +89,7 @@ export const totalsSchema = z.object({
 });
 export type Totals = z.infer<typeof totalsSchema>;
 
-export const originSchema = z.object({ how: z.enum(HOWS), at: text(40) });
+export const originSchema = z.object({ how: z.enum(HOWS), at: instant });
 export type Origin = z.infer<typeof originSchema>;
 
 /** Spans must have unique ids, point at parents that exist, and not point at themselves in a circle. */
@@ -117,7 +127,7 @@ export const traceSchema = z
     /** One line on how it went, when the app says. */
     summary: text(1000).nullable(),
     /** When the run began, when the app says. */
-    startedAt: text(40).nullable(),
+    startedAt: instant.nullable(),
     durationMs: milliseconds,
     status: z.enum(TRACE_STATUSES),
     spans: z.array(spanSchema).max(MAX_SPANS),

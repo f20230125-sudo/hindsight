@@ -9,6 +9,7 @@ import { Player } from "./Player";
 import { SpanDetail } from "./SpanDetail";
 import { SpanTable } from "./SpanTable";
 import { Timeline } from "./Timeline";
+import { played } from "@/timeline/playback";
 import { makeScale, waitsOf } from "@/timeline/scale";
 import { fullWindow, paramsFromView, panned, reduceView, viewFromParams, windowAround, zoomed } from "@/timeline/view";
 import { plural } from "@/trace/format";
@@ -20,11 +21,6 @@ import type { Trace } from "@/trace/schema";
 //
 // The mode, the part of the run on show and the span that is chosen are kept in
 // the address, so any view of a run is a link.
-
-/** How long a run takes to play, whatever its length: about this many milliseconds. */
-const PLAY_REAL_MS = 12_000;
-/** How long the whole track takes to play in agent time. */
-const PLAY_AGENT_MS = 9_000;
 
 export function RunExplorer({ trace }: { trace: Trace }) {
   const params = useSearchParams();
@@ -47,14 +43,9 @@ export function RunExplorer({ trace }: { trace: Trace }) {
   }, [query, pathname]);
 
   const advance = useEffectEvent((elapsed: number) => {
-    const at = view.playhead ?? 0;
-    const next = view.mode === "real" ? at + elapsed * Math.max(1, trace.durationMs / PLAY_REAL_MS) : wholeRun.ms(Math.min(1, wholeRun.x(at) + elapsed / PLAY_AGENT_MS));
-    if (next >= trace.durationMs) {
-      dispatch({ type: "playhead", at: trace.durationMs });
-      setPlaying(false);
-    } else {
-      dispatch({ type: "playhead", at: next });
-    }
+    const next = played(view.playhead ?? 0, elapsed, trace.durationMs, wholeRun);
+    dispatch({ type: "playhead", at: next.at });
+    if (next.ended) setPlaying(false);
   });
 
   useEffect(() => {
@@ -70,10 +61,7 @@ export function RunExplorer({ trace }: { trace: Trace }) {
     return () => cancelAnimationFrame(frame);
   }, [playing]);
 
-  const zoom = (factor: number) => {
-    const window = view.window ?? full;
-    dispatch({ type: "window", window: zoomed(view.window, full, factor, (window.from + window.to) / 2) });
-  };
+  const zoom = (factor: number) => dispatch({ type: "window", window: zoomed(scale, full, factor) });
   const pan = (fraction: number) => dispatch({ type: "window", window: panned(view.window, full, fraction) });
   const reset = () => dispatch({ type: "window", window: null });
 

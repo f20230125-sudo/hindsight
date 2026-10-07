@@ -139,6 +139,31 @@ test.describe("the keyboard", () => {
     const stops = await timeline(page).locator('button[tabindex="0"]').count();
     expect(stops).toBe(1);
   });
+
+  test("passes over rows with nothing on show when the run is zoomed in", async ({ page }) => {
+    // Between 1 s and 3 s of the audit only the sync step and one of its calls are going on.
+    // The two calls before that one, and everything after it, have nothing on the track.
+    await openRun(page, `${AUDIT_PATH}?from=1000&to=3000`);
+    await bar(page, /^sync\. Step/).focus();
+
+    await page.keyboard.press("ArrowDown");
+    expect(await focused(page)).toMatch(/^POST \/graphql\. API call/);
+    // Nothing further down is on show, so it stays.
+    await page.keyboard.press("ArrowDown");
+    expect(await focused(page)).toMatch(/^POST \/graphql\. API call/);
+    expect(await timeline(page).locator('button[tabindex="0"]').count()).toBe(1);
+
+    await page.keyboard.press("ArrowUp");
+    expect(await focused(page)).toMatch(/^sync\. Step/);
+  });
+
+  test("still has a place in the tab order when the first rows have nothing on show", async ({ page }) => {
+    // Three seconds into the journey nothing is going on but the wait for the traveller. Every row above it is empty.
+    await openRun(page, `${SAYSO_PATH}?from=3000&to=3500`);
+    const stops = timeline(page).locator('button[tabindex="0"]');
+    await expect(stops).toHaveCount(1);
+    await expect(stops).toHaveAccessibleName(/^Waiting for the traveller to choose a seat/);
+  });
 });
 
 test.describe("playing a run back", () => {
@@ -192,6 +217,26 @@ test.describe("playing a run back", () => {
     // It is at the end, so it begins again from the start rather than stopping at once.
     await expect.poll(async () => Number(await slider(page).inputValue()), { timeout: 5000 }).toBeLessThan(5900);
     await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
+  });
+
+  test("reaches the end in agent time, and stops there", async ({ page }) => {
+    await openRun(page, `${SAYSO_PATH}?time=agent`);
+    // 17 ms before the end of a run of 5917 ms.
+    await slider(page).fill("5900");
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Play again" })).toBeVisible();
+    expect(Number(await slider(page).inputValue())).toBe(5917);
+  });
+
+  test("zooms about the middle of the picture in agent time, so the app's work stays on show", async ({ page }) => {
+    await openRun(page, `${SAYSO_PATH}?time=agent`);
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect(page).toHaveURL(/from=\d+&to=\d+/);
+    // The call that prices the change is in the middle of the track in agent time, and still is.
+    await expect(bar(page, QUOTE)).toBeVisible();
+    await expect(page.getByText("Nothing happened in the part of the run that is on show.")).toHaveCount(0);
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    await expect(page).not.toHaveURL(/from=/);
   });
 });
 

@@ -14,9 +14,12 @@ const selectSamples = api.endpoints.sampleRuns.select();
 export const selectGithubBotState = (state: RootState) => selectGithubBot(state);
 export const selectSamplesState = (state: RootState) => selectSamples(state);
 
+/** No runs yet. It is one list, so that asking twice before an answer has come gives the same thing, and nothing is worked out again. */
+const NONE: Trace[] = [];
+
 const selectReceived = (state: RootState) => state.runs.received;
-const selectGithubBotTraces = (state: RootState): Trace[] => selectGithubBot(state).data?.traces ?? [];
-const selectSampleTraces = (state: RootState): Trace[] => selectSamples(state).data?.traces ?? [];
+const selectGithubBotTraces = (state: RootState): Trace[] => selectGithubBot(state).data?.traces ?? NONE;
+const selectSampleTraces = (state: RootState): Trace[] => selectSamples(state).data?.traces ?? NONE;
 
 /** Every run known, newest first. */
 export const selectAllTraces = createSelector([selectGithubBotTraces, selectSampleTraces, selectReceived], (live, samples, received) =>

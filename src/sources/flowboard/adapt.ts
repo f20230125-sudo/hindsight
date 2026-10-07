@@ -54,28 +54,34 @@ const answeredBySample = (step: FlowboardStep) => (step.note ?? "").toLowerCase(
 export function adaptFlowboard(data: FlowboardRun, { origin }: Options): Trace {
   const { flow, run } = data;
   const blocks = new Map(flow.blocks.map((block) => [block.id, block]));
-  const t0 = run.startedAt ?? Math.min(...run.steps.map((step) => step.startedAt ?? Number.POSITIVE_INFINITY), 0);
+  // The run began when it says it did, or else when the first of its blocks did.
+  const began = run.steps.flatMap((step) => (step.startedAt === null ? [] : [step.startedAt]));
+  const t0 = run.startedAt ?? (began.length > 0 ? Math.min(...began) : 0);
   const rel = (at: number) => Math.max(0, Math.round(at - t0));
 
   const ranUntil = run.steps.reduce((latest, step) => (step.startedAt !== null ? Math.max(latest, rel(step.startedAt) + Math.round(step.ms ?? 0)) : latest), 0);
   const durationMs = Math.max(Math.round(run.ms ?? 0), ranUntil);
 
-  // When each block that ran was done, so a block left out can be placed when it was decided.
-  const finishedAt = new Map<string, number>();
-  for (const step of run.steps) if (step.startedAt !== null) finishedAt.set(step.id, rel(step.startedAt) + Math.round(step.ms ?? 0));
+  // When each block was settled: done, for one that ran, and left out, for one that did not.
+  // A block left out is placed by the blocks before it, so the steps are read in the order the run reached them.
+  const settledAt = new Map<string, number>();
+  for (const step of run.steps) if (step.startedAt !== null) settledAt.set(step.id, Math.min(durationMs, rel(step.startedAt) + Math.round(step.ms ?? 0)));
 
   const spans: Span[] = [];
   for (const step of run.steps) {
     const block = blocks.get(step.id);
     const type = block?.type ?? "unknown";
-    const name = `${block?.name ?? "(a block that was deleted)"} · ${TYPE_LABELS[type] ?? type}`;
+    const name = clip(`${block?.name ?? "(a block that was deleted)"} · ${TYPE_LABELS[type] ?? type}`, 480);
     const status = STATUS[step.status];
 
     if (step.startedAt === null) {
-      // It never began. It was left out when the blocks leading to it settled, or when the run ended.
-      const sources = flow.connections.filter((connection) => connection.to === step.id).map((connection) => finishedAt.get(connection.from));
+      // It never began. A block nothing leads to, or one in a loop, is left out before anything starts;
+      // one whose path was not taken, when the last block leading to it settled; the rest, when the run ended.
+      const sources = flow.connections.filter((connection) => connection.to === step.id).map((connection) => settledAt.get(connection.from));
       const known = sources.filter((at): at is number => at !== undefined);
-      const decided = step.reason === "run-ended" ? durationMs : known.length > 0 ? Math.max(...known) : 0;
+      const decided =
+        step.reason === "run-ended" ? durationMs : step.reason === "not-connected" || step.reason === "in-loop" ? 0 : known.length > 0 ? Math.max(...known) : 0;
+      settledAt.set(step.id, Math.min(decided, durationMs));
       spans.push({
         id: `block-${step.id}`,
         parentId: null,
@@ -137,7 +143,7 @@ export function adaptFlowboard(data: FlowboardRun, { origin }: Options): Trace {
     source: "flowboard",
     agent: null,
     title: clip(flow.name, 500),
-    summary,
+    summary: clip(summary, 1000),
     startedAt: run.startedAt === null ? null : new Date(run.startedAt).toISOString(),
     durationMs,
     status: RUN_STATUS[run.status],

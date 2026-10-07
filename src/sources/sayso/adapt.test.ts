@@ -111,6 +111,73 @@ describe("a call that failed and was not tried again", () => {
   });
 });
 
+describe("a try that failed with no answer at all", () => {
+  // Sayso keeps a record of a call only when an answer came back. With no
+  // connection there is none, so the only record of the step is the next try's.
+  const at = (run: SaysoRun, ms: number) => Date.parse(run.startedAt!) + ms;
+
+  it("is drawn from the log, as long as the try lasted, and leaves the next try its own record", () => {
+    const base = runOf("a call that failed, tried again");
+    // The same journey, had the first try got no answer: its record (a 500 after 437 ms) was never made.
+    const trace = adaptSayso({ ...base, calls: base.calls.filter((call) => call.failure === null) }, { origin });
+
+    const calls = spansOf(trace, "tool");
+    expect(calls.map((call) => [call.startMs, call.durationMs, call.status])).toEqual([
+      // Started 4 ms in, failed at 443.
+      [4, 439, "failed"],
+      [2706, 37, "ok"],
+      [6421, 42, "ok"],
+      [8363, 27, "ok"],
+    ]);
+    expect(calls[0]).toMatchObject({ name: "Get the seat map", attributes: { tool: "seatMap", answered: false, failure: null } });
+    expect(calls[0].attributes.status).toBeUndefined();
+    // The try that worked keeps what it asked for and what came back.
+    expect(calls[1]).toMatchObject({ name: "GET /api/flights/JN203_2026-10-15/seats", attributes: { status: 200, ms: 37 } });
+    expect(calls[1].output).toBeDefined();
+    expect(trace.totals).toMatchObject({ calls: 4, failures: 1 });
+    expect(traceSchema.safeParse(trace).success).toBe(true);
+  });
+
+  it("is told from a later try that failed with an answer, by how long each took", () => {
+    const base = runOf("a call that failed");
+    // No answer after 8 ms; tried again 100 ms in; a 500 after 450 ms, which is the one record there is.
+    const run: SaysoRun = {
+      ...base,
+      log: [
+        { at: at(base, 3), type: "set", stepId: "trip" },
+        { at: at(base, 3), type: "tool-started", stepId: "seats" },
+        { at: at(base, 11), type: "failed", stepId: "seats" },
+        { at: at(base, 93), type: "resumed", stepId: null },
+        { at: at(base, 103), type: "tool-started", stepId: "seats" },
+        { at: at(base, 555), type: "failed", stepId: "seats" },
+      ],
+    };
+    const trace = adaptSayso(run, { origin });
+
+    const calls = spansOf(trace, "tool");
+    expect(calls.map((call) => [call.startMs, call.durationMs, call.status])).toEqual([
+      [3, 8, "failed"],
+      [103, 450, "failed"],
+    ]);
+    expect(calls[0].attributes).toMatchObject({ answered: false, failure: null });
+    // The reason the run was left with belongs to the last try, which also has the answer that came.
+    expect(calls[1].attributes).toMatchObject({ status: 500, failure: { code: "server_error" } });
+    expect(spansOf(trace, "wait")[0]).toMatchObject({ name: "Waiting for the traveller to try again", startMs: 11, durationMs: 82 });
+  });
+
+  it("says why, when it is the failure the run was left with", () => {
+    const base = runOf("a call that failed");
+    const trace = adaptSayso({ ...base, calls: [], failure: { stepId: "seats", code: "network", message: "Could not reach the airline." } }, { origin });
+    expect(spansOf(trace, "tool")[0]).toMatchObject({
+      name: "Get the seat map",
+      startMs: 3,
+      durationMs: 452,
+      status: "failed",
+      attributes: { answered: false, failure: { code: "network", message: "Could not reach the airline." } },
+    });
+  });
+});
+
 describe("a journey left unfinished", () => {
   const trace = adapt("left unfinished");
 
@@ -121,6 +188,18 @@ describe("a journey left unfinished", () => {
     expect(span(trace, "Left unfinished. Nothing was changed.")).toMatchObject({ kind: "said", startMs: 2692 });
     expect(trace.summary).toBe("Left unfinished. Nothing was changed.");
     expect(trace.durationMs).toBe(2692);
+  });
+
+  it("says the closing line once, when the journey was closed, even if it had been stopped before", () => {
+    const base = runOf("left unfinished");
+    const stoppedAt = Date.parse(base.startedAt!) + 2000;
+    const log = [...base.log.slice(0, -2), { at: stoppedAt, type: "stopped", stepId: null }, ...base.log.slice(-2)];
+    const stoppedFirst = adaptSayso({ ...base, log }, { origin });
+
+    const closing = stoppedFirst.spans.filter((entry) => entry.name === "Left unfinished. Nothing was changed.");
+    expect(closing.map((entry) => entry.startMs)).toEqual([2692]);
+    // The wait ended when the run was stopped.
+    expect(span(stoppedFirst, /^Waiting for the traveller to choose a seat/)).toMatchObject({ startMs: 25, durationMs: 1975, status: "stopped" });
   });
 });
 
@@ -188,6 +267,48 @@ describe("a turn saved before the log was kept", () => {
     expect(trace.startedAt).toBeNull();
     expect(traceSchema.safeParse(trace).success).toBe(true);
     expect(spansOf(trace, "tool")).toHaveLength(3);
+  });
+
+  it("with no log at all, lays its calls end to end after the reading, and says the times were worked out", () => {
+    const base = runOf("a window seat, paid for");
+    const trace = adaptSayso({ ...base, startedAt: null, log: [] }, { origin });
+
+    // Reading took 2 ms; the calls took 100, 158 and 39.
+    const calls = spansOf(trace, "tool");
+    expect(calls.map((call) => [call.name, call.startMs, call.durationMs, call.timing])).toEqual([
+      ["GET /api/flights/JN203_2026-10-15/seats", 2, 100, "estimated"],
+      ["POST /api/quotes", 102, 158, "estimated"],
+      ["POST /api/orders", 260, 39, "estimated"],
+    ]);
+    expect(String(calls[0].attributes.note)).toContain("before Sayso noted when things happened");
+    expect(trace.durationMs).toBe(299);
+    expect(trace.totals).toMatchObject({ calls: 3, failures: 0 });
+    expect(spansOf(trace, "check").map((check) => [check.startMs, check.status, check.timing])).toEqual([
+      [299, "ok", "estimated"],
+      [299, "ok", "estimated"],
+      [299, "ok", "estimated"],
+    ]);
+    // Nobody can be said to have waited: the turn does not say when anything was shown.
+    expect(spansOf(trace, "wait")).toEqual([]);
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+  });
+
+  it("is not measured against the day it was written out, when it was still waiting", () => {
+    const base = runOf("waiting at the seat map");
+    const trace = adaptSayso({ ...base, startedAt: null, log: [] }, { origin });
+    expect(trace.status).toBe("waiting");
+    expect(trace.durationMs).toBeLessThan(1000);
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+  });
+});
+
+describe("text longer than a timeline has room for", () => {
+  it("is cut, and the run is still read", () => {
+    const base = runOf("small talk");
+    const trace = adaptSayso({ ...base, reply: "word ".repeat(1000) }, { origin });
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+    expect(trace.summary).toHaveLength(1000);
+    expect(spansOf(trace, "said")[0].shown).toHaveLength(2000);
   });
 });
 

@@ -1,33 +1,67 @@
 import { describe, expect, it } from "vitest";
 import { makeSpan, makeTrace } from "@/test/traces";
+import { makeScale, type Window } from "./scale";
 import { MIN_WINDOW_MS, START, fullWindow, paramsFromView, panned, reduceView, viewFromParams, windowAround, zoomed } from "./view";
 
 const FULL = { from: 0, to: 10_000 };
 const trace = makeTrace({ durationMs: 10_000, spans: [makeSpan("a"), makeSpan("b")] });
 
 describe("zooming", () => {
-  it("shows half as much of the run around a moment, keeping that moment where it is on the track", () => {
-    // 5000 is half way along the track. After zooming in it is still half way.
-    expect(zoomed(null, FULL, 0.5, 5000)).toEqual({ from: 2500, to: 7500 });
-    // 1000 is a tenth of the way along. After zooming in it is still a tenth of the way along.
-    const window = zoomed(null, FULL, 0.5, 1000)!;
-    expect((1000 - window.from) / (window.to - window.from)).toBeCloseTo(0.1);
+  /** The track in real time, with this much of the run on it. */
+  const real = (window?: Window) => makeScale([], 10_000, "real", window);
+
+  it("shows half as much of the run, about the middle of what is on the track", () => {
+    expect(zoomed(real(), FULL, 0.5)).toEqual({ from: 2500, to: 7500 });
+    expect(zoomed(real({ from: 2500, to: 7500 }), FULL, 0.5)).toEqual({ from: 3750, to: 6250 });
+    expect(zoomed(real({ from: 0, to: 1000 }), FULL, 0.5)).toEqual({ from: 250, to: 750 });
   });
 
-  it("never goes past the ends of the run", () => {
-    expect(zoomed(null, FULL, 0.1, 0)).toEqual({ from: 0, to: 1000 });
-    expect(zoomed(null, FULL, 0.1, 10_000)).toEqual({ from: 9000, to: 10_000 });
-    expect(zoomed({ from: 2000, to: 4000 }, FULL, 0.5, 2000)!.from).toBe(2000);
+  it("shows twice as much, and never goes past the ends of the run", () => {
+    expect(zoomed(real({ from: 4000, to: 6000 }), FULL, 2)).toEqual({ from: 3000, to: 7000 });
+    // At an end there is no more that way, so the rest is taken from the other side.
+    expect(zoomed(real({ from: 0, to: 1000 }), FULL, 2)).toEqual({ from: 0, to: 2000 });
+    expect(zoomed(real({ from: 9000, to: 10_000 }), FULL, 2)).toEqual({ from: 8000, to: 10_000 });
   });
 
   it("goes back to all of the run when it is zoomed out as far as it will go", () => {
-    expect(zoomed({ from: 2500, to: 7500 }, FULL, 2, 5000)).toBeNull();
-    expect(zoomed({ from: 2500, to: 7500 }, FULL, 4, 5000)).toBeNull();
+    expect(zoomed(real({ from: 2500, to: 7500 }), FULL, 2)).toBeNull();
+    expect(zoomed(real({ from: 2500, to: 7500 }), FULL, 4)).toBeNull();
   });
 
   it("stops at the least that is worth showing", () => {
-    const window = zoomed({ from: 100, to: 120 }, FULL, 0.01, 110)!;
+    const window = zoomed(real({ from: 100, to: 120 }), FULL, 0.01)!;
     expect(window.to - window.from).toBe(MIN_WINDOW_MS);
+    expect((window.from + window.to) / 2).toBe(110);
+    // A run shorter than that is always shown whole.
+    expect(zoomed(makeScale([], 3, "real"), { from: 0, to: 3 }, 0.5)).toBeNull();
+  });
+
+  describe("in agent time", () => {
+    // A second of work, four seconds of a person choosing, a second of work: the
+    // wait is squeezed to 300 ms of track, so the track is 2300 wide in all.
+    const spans = [makeSpan("first", { kind: "tool", startMs: 0, durationMs: 1000 }), makeSpan("choose", { kind: "wait", startMs: 1000, durationMs: 4000 }), makeSpan("second", { kind: "tool", startMs: 5000, durationMs: 1000 })];
+    const whole = { from: 0, to: 6000 };
+    const agent = (window?: Window) => makeScale(spans, 6000, "agent", window);
+
+    it("keeps the middle of the picture in the middle, with the work either side of the wait still on show", () => {
+      const window = zoomed(agent(), whole, 0.5)!;
+      // The middle half of a track 2300 wide runs from 575 to 1725 along it: 575 ms into the first second of work, and 425 ms into the last.
+      expect(window.from).toBeCloseTo(575);
+      expect(window.to).toBeCloseTo(5425);
+      // What was a quarter and three quarters of the way along are now the two ends.
+      const zoomedIn = agent(window);
+      expect(zoomedIn.x(window.from)).toBe(0);
+      expect(agent().x(window.from)).toBeCloseTo(0.25);
+      expect(agent().x(window.to)).toBeCloseTo(0.75);
+      // Measured in milliseconds the middle half would be 1500 to 4500: nothing but the wait.
+      expect(window.from).toBeLessThan(1000);
+      expect(window.to).toBeGreaterThan(5000);
+    });
+
+    it("comes back out to the same picture", () => {
+      const inside = zoomed(agent(), whole, 0.5)!;
+      expect(zoomed(agent(inside), whole, 2)).toBeNull();
+    });
   });
 });
 

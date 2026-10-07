@@ -1,5 +1,5 @@
 import type { Trace } from "@/trace/schema";
-import type { Mode, Window } from "./scale";
+import type { Mode, Scale, Window } from "./scale";
 
 // How a run is being looked at: in real time or agent time, how much of it is on
 // the track, what is chosen, and where the playhead is. The mode, the window and
@@ -23,15 +23,30 @@ export const fullWindow = (trace: Trace): Window => ({ from: 0, to: trace.durati
 
 const sameWindow = (a: Window, b: Window) => Math.abs(a.from - b.from) < 0.5 && Math.abs(a.to - b.to) < 0.5;
 
-/** Shows less (factor under 1) or more (over 1) of the run, keeping the moment `around` where it is on the track. */
-export function zoomed(current: Window | null, full: Window, factor: number, around: number): Window | null {
-  const window = current ?? full;
-  const width = Math.min(full.to - full.from, Math.max(MIN_WINDOW_MS, (window.to - window.from) * factor));
-  // Keep the moment `around` at the same share of the track.
-  const share = window.to > window.from ? (around - window.from) / (window.to - window.from) : 0.5;
-  let from = around - share * width;
-  from = Math.min(Math.max(full.from, from), full.to - width);
-  const next = { from, to: from + width };
+/**
+ * Shows less (factor under 1) or more (over 1) of what is on the track, about
+ * its middle. `scale` is the track as it is now.
+ *
+ * It is worked out along the track, not in milliseconds. In real time the two
+ * are the same. In agent time they are not: the middle of the run in
+ * milliseconds is often inside a wait that has been squeezed to a sliver, and
+ * zooming in on it would leave nothing but that wait on show.
+ */
+export function zoomed(scale: Scale, full: Window, factor: number): Window | null {
+  // The whole run in the track's own measure, where 0 and 1 are the ends of what is on show now.
+  const low = scale.x(full.from);
+  const high = scale.x(full.to);
+  const width = Math.min(high - low, factor);
+  // About the middle, moved along where that would run past an end of the run.
+  const left = Math.min(Math.max(low, 0.5 - width / 2), high - width);
+  let from = Math.max(full.from, scale.ms(left));
+  let to = Math.min(full.to, scale.ms(left + width));
+  if (to - from < MIN_WINDOW_MS) {
+    const middle = (from + to) / 2;
+    from = Math.min(Math.max(full.from, middle - MIN_WINDOW_MS / 2), Math.max(full.from, full.to - MIN_WINDOW_MS));
+    to = Math.min(full.to, from + MIN_WINDOW_MS);
+  }
+  const next = { from, to };
   return sameWindow(next, full) ? null : next;
 }
 

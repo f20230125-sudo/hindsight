@@ -6,6 +6,7 @@ import { adaptFlowboard } from "./flowboard/adapt";
 import { flowboardRunSchema } from "./flowboard/schema";
 import { adaptSayso } from "./sayso/adapt";
 import { saysoRunSchema } from "./sayso/schema";
+import { MAX_DEPTH, nestsDeeperThan } from "@/trace/json";
 import { SOURCE_LABELS, traceSchema, type Origin, type Trace } from "@/trace/schema";
 
 // Everything that arrives from outside goes through here: a run sent by one of
@@ -60,8 +61,19 @@ function firstProblem(error: ZodError): string {
 
 const isApp = (value: string): value is App => (APPS as readonly string[]).includes(value);
 
-/** Reads an envelope that has already been parsed from JSON. */
+/** Words from outside, short enough to say back. */
+const quoted = (text: string) => (text.length > 40 ? `${text.slice(0, 40)}…` : text);
+
+/**
+ * Reads an envelope that has already been parsed from JSON. Whatever it is
+ * given, it answers with a trace or a reason: it does not throw.
+ */
 export function readEnvelope(input: unknown, how: Origin["how"], at: string): Received {
+  // Measured first, without recursion, so nothing after this can be made to go too deep.
+  if (nestsDeeperThan(input, MAX_DEPTH)) {
+    return refuse(`This run holds data nested more than ${MAX_DEPTH} levels deep, which no app writes.`);
+  }
+
   const envelope = envelopeSchema.safeParse(input);
   if (!envelope.success) {
     return refuse(`This is not a run written by one of the apps. It should say "format": "${ENVELOPE_FORMAT}", as the "Open in Hindsight" buttons write it.`);
@@ -71,12 +83,12 @@ export function readEnvelope(input: unknown, how: Origin["how"], at: string): Re
     return refuse(`This run is in version ${version} of the format. This Hindsight reads version ${ENVELOPE_VERSION}.`);
   }
   if (!isApp(app)) {
-    return refuse(`"${app}" is not an app Hindsight reads. It reads ${APPS.map((name) => SOURCE_LABELS[name]).join(", ")}.`);
+    return refuse(`"${quoted(app)}" is not an app Hindsight reads. It reads ${APPS.map((name) => SOURCE_LABELS[name]).join(", ")}.`);
   }
 
   const origin: Origin = { how, at };
-  let trace: Trace;
   try {
+    let trace: Trace;
     if (app === "sayso") {
       const run = saysoRunSchema.safeParse(data);
       if (!run.success) return refuse(`This Sayso run is not in the shape Sayso writes. ${firstProblem(run.error)}`);
@@ -90,13 +102,13 @@ export function readEnvelope(input: unknown, how: Origin["how"], at: string): Re
       if (!run.success) return refuse(`This Agent Desk run is not in the shape its run page holds. ${firstProblem(run.error)}`);
       trace = adaptDeskRun(run.data, { source: "agent-desk", origin });
     }
+
+    const checked = traceSchema.safeParse(trace);
+    if (!checked.success) return refuse(`This ${SOURCE_LABELS[app]} run was read, but it does not make a timeline Hindsight can draw. ${firstProblem(checked.error)}`);
+    return { ok: true, trace: checked.data };
   } catch {
     return refuse(`This ${SOURCE_LABELS[app]} run could not be read.`);
   }
-
-  const checked = traceSchema.safeParse(trace);
-  if (!checked.success) return refuse(`This ${SOURCE_LABELS[app]} run was read, but it does not make a timeline Hindsight can draw. ${firstProblem(checked.error)}`);
-  return { ok: true, trace: checked.data };
 }
 
 /** Reads the text of a file. */
@@ -128,22 +140,27 @@ const looksLikeARun = (data: unknown): data is { format: string; app: string } =
  */
 export function acceptMessage(event: MessageLike, opener: unknown, at: string): Accepted {
   if (opener === null || opener === undefined || event.source !== opener) return { kind: "ignore" };
+  // Only an address written in the list itself counts, not a word every object answers to, such as "constructor".
+  if (typeof event.origin !== "string" || !Object.hasOwn(ALLOWED_ORIGINS, event.origin)) return { kind: "ignore" };
   const allowed = ALLOWED_ORIGINS[event.origin];
-  if (!allowed) return { kind: "ignore" };
   if (!looksLikeARun(event.data)) return { kind: "ignore" };
 
   if (!isApp(event.data.app) || !allowed.includes(event.data.app)) {
-    return { kind: "refused", reason: `${event.origin} may send ${allowed.map((name) => SOURCE_LABELS[name]).join(" and ")} runs, not "${event.data.app}" runs.` };
+    return { kind: "refused", reason: `${event.origin} may send ${allowed.map((name) => SOURCE_LABELS[name]).join(" and ")} runs, not "${quoted(event.data.app)}" runs.` };
   }
 
-  let size = 0;
+  // A message can hold things a file cannot: dates, maps, an object that holds
+  // itself. It is written out as JSON and read back, so what is checked and
+  // kept is what a file would have held, and its size is the size of that file.
+  let plain: unknown;
   try {
-    size = JSON.stringify(event.data).length;
+    const text = JSON.stringify(event.data);
+    if (text.length > MAX_BYTES) return { kind: "refused", reason: `This run is ${(text.length / 1_000_000).toFixed(1)} MB. Hindsight takes runs up to ${MAX_BYTES / 1_000_000} MB.` };
+    plain = JSON.parse(text);
   } catch {
     return { kind: "refused", reason: "The run could not be read." };
   }
-  if (size > MAX_BYTES) return { kind: "refused", reason: `This run is ${(size / 1_000_000).toFixed(1)} MB. Hindsight takes runs up to ${MAX_BYTES / 1_000_000} MB.` };
 
-  const result = readEnvelope(event.data, "sent", at);
+  const result = readEnvelope(plain, "sent", at);
   return result.ok ? { kind: "received", trace: result.trace } : { kind: "refused", reason: result.reason };
 }

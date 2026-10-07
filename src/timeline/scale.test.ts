@@ -62,6 +62,22 @@ describe("agent time", () => {
     expect(scale.ms(scale.x(3000))).toBeCloseTo(3000, 6);
   });
 
+  it("gives the two ends of the track back exactly, not nearly", () => {
+    // A run that ends while still waiting. Worked out, the end of this track is 45918.99999999999.
+    const waiting = [makeSpan("w", { kind: "wait", startMs: 4563, durationMs: 41_356 })];
+    const whole = makeScale(waiting, 45_919, "agent");
+    expect(whole.x(45_919)).toBe(1);
+    expect(whole.ms(1)).toBe(45_919);
+    expect(whole.ms(0)).toBe(0);
+    // And of a window on it.
+    const part = makeScale(waiting, 45_919, "agent", { from: 1000, to: 30_000 });
+    expect(part.ms(0)).toBe(1000);
+    expect(part.ms(1)).toBe(30_000);
+    // Beyond the ends it still goes on as a straight line.
+    expect(whole.ms(1.5)).toBeGreaterThan(45_919);
+    expect(whole.ms(-0.5)).toBeLessThan(0);
+  });
+
   it("is the same as real time when no one was waited for", () => {
     const work = [makeSpan("a", { kind: "tool", startMs: 0, durationMs: 500 })];
     const agent = makeScale(work, 500, "agent");

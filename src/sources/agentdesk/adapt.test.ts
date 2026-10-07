@@ -185,3 +185,38 @@ describe("runs that are not complete", () => {
     expect(trace.totals).toEqual({ calls: 1, modelCalls: 1, tokens: 1500, failures: 0, avoided: null });
   });
 });
+
+describe("text longer than a timeline has room for", () => {
+  const base = detailOf("audit-0721cc42cb");
+
+  it("is cut, so a run with a whole drafted post in a message is still read", () => {
+    const post = "A long post about a week of work. ".repeat(200);
+    const lastId = Math.max(...base.events.map((event) => event.id));
+    const detail: DeskRunDetail = {
+      run: { ...base.run, title: "t".repeat(900), text: "s".repeat(4000) },
+      events: [
+        ...base.events,
+        { id: lastId + 1, ts: base.events.at(-1)!.ts, type: "message", payload: { from: "pitch", to: "you", topic: "draft", text: post } },
+        { id: lastId + 2, ts: base.events.at(-1)!.ts, type: "tool.result", payload: { kind: "github", method: "GET", path: `/search/${"q".repeat(900)}`, status: 200, ms: 1 } },
+      ],
+    };
+    const trace = adaptDeskRun(detail, { source: "agent-desk", origin });
+
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+    expect(trace.title).toHaveLength(500);
+    expect(trace.summary).toHaveLength(1000);
+    const message = trace.spans.find((span) => span.id === `event-${lastId + 1}`)!;
+    expect(message.shown).toHaveLength(2000);
+    // The whole text is still in the data recorded with it, up to the length any one piece of data is kept at.
+    expect(String(message.attributes.text).length).toBeGreaterThan(2000);
+    expect(trace.spans.find((span) => span.id === `event-${lastId + 2}`)!.name).toHaveLength(300);
+  });
+
+  it("a start that is not a date is no start, and the run is placed by its first event", () => {
+    const trace = adaptDeskRun({ ...base, run: { ...base.run, started_at: "some time on Sunday", finished_at: null } }, { source: "github-bot", origin });
+    expect(trace.startedAt).toBeNull();
+    expect(traceSchema.safeParse(trace).error?.issues ?? []).toEqual([]);
+    // From the first event to the last: the same 7998 ms, as the first event is the run starting.
+    expect(trace.durationMs).toBe(7998);
+  });
+});

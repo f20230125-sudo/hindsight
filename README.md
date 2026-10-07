@@ -49,7 +49,10 @@ Everything that arrives is checked, in `src/sources/receive.ts`:
 
 - it must come from the app's own page (a fixed list of addresses), and a page may send only as its own app;
 - it is read only from the tab that opened Hindsight's page, and anything else is ignored without a word;
-- it must be under 2 MB, say it is in the `hindsight/run` format, version 1, and fit the shape that app is known to write, or it is refused with the reason, in plain words.
+- it must be under 2 MB, say it is in the `hindsight/run` format, version 1, and fit the shape that app is known to write, or it is refused with the reason, in plain words;
+- a message is written out as JSON and read back before anything looks at it, so what is checked and kept is what a file would have held, and data nested deeper than 64 levels is refused before anything walks it.
+
+A run's text is only ever drawn as text. Nothing from a run is put into a link or into the page as markup, and a test sends a run whose every field is markup and a script address and checks that nothing runs. As a second fence, every page is sent with a Content-Security-Policy that names no other site (no script, style, font or image from elsewhere, and no request to anywhere but Hindsight's own server), and with headers that stop another site from showing Hindsight in a frame. The policy still allows inline scripts, because Next.js writes them into each page and doing without would mean no page could be built ahead of time; that is said in `next.config.ts` and under Limits.
 
 What each app sends is its own record of one run: Sayso, a turn with its plan, calls and a log of what happened and when; Flowboard, the blocks' names and kinds and the data that passed through them, **never their settings**, which can hold keys; Agent Desk, a run and its events. Adding an app means writing one adapter and adding its address to the list.
 
@@ -73,10 +76,16 @@ Building the adapters against real runs, not made-up ones, turned up things a ma
 
 ## Checks
 
-- 251 unit tests, against real runs where there are real runs: the adapters, the receiver, the time scale and its inverse, the way time is counted without counting twice, the view state, the statistics, the store.
-- 91 end-to-end tests in a real browser: every page, the hand-over from a stand-in for each app's page (including a page that is not allowed, and an app sending as another), the file drop, the keyboard, playback, and axe accessibility scans of every page in both themes and at phone width.
+- 289 unit tests, against real runs where there are real runs: the adapters, the receiver, the time scale and its inverse, playback, the way time is counted without counting twice, the view state, the statistics, the store.
+- 98 end-to-end tests in a real browser: every page, the hand-over from a stand-in for each app's page (including a page that is not allowed, and an app sending as another), the file drop, the keyboard, playback, the security headers and a run made of markup, and axe accessibility scans of every page in both themes and at phone width.
 - CI runs lint, the type check, the unit tests, the build and the end-to-end tests; builds the Docker image, starts it and asks it for its pages; and applies `deploy/k8s.yaml` to a real cluster (kind) and checks both pods come up under the manifest's security settings.
 - The end-to-end tests found two real faults while this was built: a run saved 250 ms after it arrived was lost if the page was reloaded inside that wait (it is now saved when the page is left), and a link inside running text that was told apart only by colour (it is underlined).
+- A review after it was built, reading each adapter beside the app it reads, found more that the tests had passed over, each now fixed with a test:
+  - **Playing a run in agent time could fail to finish.** The time at the end of the track is worked out from the squeezed widths, and for about one made-up run in twenty with a wait in it, it came back a hair short of the run's length (45918.99999999999 for 45919), so the playhead never arrived. The two ends of the track are now exact, and playback ends by its place on the track.
+  - **A Sayso call that failed with no answer borrowed the next try's details.** Sayso keeps a record of a call only when an answer came back. With no connection there is none, so the failed try was drawn with the method, address, status 200 and length of the try that worked after it.
+  - **Zooming in agent time zoomed about the wrong middle.** It was worked out in milliseconds, and the middle of a run in milliseconds is often inside a wait that agent time has squeezed to a sliver. It is now worked out along the track.
+  - **With the track zoomed in, the arrow keys stopped on rows with nothing on show,** and when the first row was one of those the timeline had no place in the tab order at all.
+  - Smaller ones: a Flowboard block left out because the block before it was left out was placed at the start of the run, not at that moment; a Sayso turn kept before its log existed showed no calls; a long message in an Agent Desk run would have had the whole run refused; a run dated years from the rest made the by-day chart count every day between; and the validation library tried `eval` on every page, which the new policy refused and the browser reported.
 
 ## Run it
 
@@ -106,4 +115,5 @@ The server reads the bot's snapshot from `raw.githubusercontent.com`. If it cann
 - A run sent from an app lives in the browser it was sent to. A link to it works there and nowhere else.
 - Cost in money and confidence scores are not shown, because none of the four apps records either. Model calls and tokens are shown where an app reports them.
 - Agent time squeezes waits for a person only. A run with none looks the same in both clocks.
-- The timeline's playback walks the run at an even pace; it is not a replay of the screen the person saw, but of what was said to them and what was going on.
+- Playback is not a replay of the screen the person saw, but of what was said to them and what was going on. In real time it goes at the speed the run did, except that a run takes no less than four seconds and no more than twelve to play; in agent time it crosses the track at an even pace.
+- The Content-Security-Policy allows inline scripts and styles, so it limits where a page can load from and send to, but would not by itself stop markup that reached the page from running. What stops that is that a run's text is never drawn as markup.
