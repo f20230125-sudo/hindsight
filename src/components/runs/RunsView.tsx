@@ -6,29 +6,17 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { StatTile } from "@/components/StatTile";
 import { useNow } from "@/components/useNow";
+import { countsOf } from "@/stats/counts";
 import { summarise } from "@/stats/summary";
 import { waysOf } from "@/stats/ways";
 import { useRuns } from "@/store/useRuns";
 import { applyFilters, filtersFromParams, hasFilters, paramsFromFilters, type Filters } from "@/trace/filters";
 import { formatAgo, formatDate, formatMs, plural } from "@/trace/format";
-import { SOURCES, SOURCE_LABELS, TRACE_STATUSES, type SourceName, type TraceStatus } from "@/trace/schema";
+import { SOURCE_LABELS } from "@/trace/schema";
 import { FilterBar } from "./FilterBar";
 import { RunTable } from "./RunTable";
 
 const PAGE = 25;
-
-/** How many runs there are for each choice a filter offers. */
-function countsOf(traces: { source: SourceName; status: TraceStatus; agent: string | null }[]) {
-  const sources = Object.fromEntries(SOURCES.map((source) => [source, 0])) as Record<SourceName, number>;
-  const statuses = Object.fromEntries(TRACE_STATUSES.map((status) => [status, 0])) as Record<TraceStatus, number>;
-  const agents: Record<string, number> = {};
-  for (const trace of traces) {
-    sources[trace.source] += 1;
-    statuses[trace.status] += 1;
-    if (trace.agent) agents[trace.agent] = (agents[trace.agent] ?? 0) + 1;
-  }
-  return { sources, statuses, agents };
-}
 
 export function RunsView() {
   const { traces, origins, errors, loading, retry } = useRuns();

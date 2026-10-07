@@ -17,6 +17,7 @@ export function Logo({ size = 18 }: { size?: number }) {
 
 const LINKS = [
   { href: "/", label: "Runs" },
+  { href: "/overview", label: "Overview" },
   { href: "/sources", label: "Sources" },
 ];
 
@@ -24,7 +25,7 @@ export function Header() {
   const pathname = usePathname();
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/85 backdrop-blur">
-      <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center gap-6 px-4 sm:px-6">
+      <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center gap-3 px-4 sm:gap-6 sm:px-6">
         <Link href="/" className="flex items-center gap-2.5 rounded-md text-[15px] font-semibold tracking-tight">
           <Logo />
           Hindsight
@@ -37,7 +38,7 @@ export function Header() {
                 key={link.href}
                 href={link.href}
                 aria-current={current ? "page" : undefined}
-                className={`rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition-colors ${current ? "bg-surface-2 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+                className={`rounded-lg px-2 py-1.5 text-[13px] font-medium transition-colors sm:px-2.5 ${current ? "bg-surface-2 text-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
               >
                 {link.label}
               </Link>

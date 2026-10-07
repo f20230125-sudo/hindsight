@@ -91,6 +91,27 @@ for (const theme of ["light", "dark"] as const) {
       }
     });
 
+    test("the overview has none", async ({ page }) => {
+      await page.goto("/overview");
+      await expect(page.getByText("Adding up all 71 runs.")).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("the overview with every chart shown as a table has none", async ({ page }) => {
+      await page.goto("/overview");
+      await expect(page.getByText("Adding up all 71 runs.")).toBeVisible();
+      for (const button of await page.getByRole("button", { name: "table" }).all()) await button.click();
+      await expect(page.getByRole("table")).toHaveCount(4);
+      expect(await violations(page)).toEqual([]);
+    });
+
+    test("the overview with a column pointed at, and its tooltip showing, has none", async ({ page }) => {
+      await page.goto("/overview");
+      await page.getByRole("list", { name: "Runs by day" }).getByRole("listitem").nth(3).hover();
+      await expect(page.getByRole("tooltip").first()).toBeVisible();
+      expect(await violations(page)).toEqual([]);
+    });
+
     test("the sources page has none", async ({ page }) => {
       await page.goto("/sources");
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("How each app is connected");
