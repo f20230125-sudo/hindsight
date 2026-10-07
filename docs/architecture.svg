@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 560" role="img" aria-labelledby="title desc" font-family="ui-sans-serif, system-ui, 'Segoe UI', sans-serif">
+  <title id="title">How a run gets from an app to a timeline</title>
+  <desc id="desc">Sayso, Flowboard and Agent Desk hand a run to the Hindsight page with a button, as a message addressed to Hindsight alone, or as a file. The GitHub bot is read from its published snapshot. Every run is checked, turned into one format by an adapter, kept in the store, and drawn by the pages.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b6472"/>
+    </marker>
+    <style>
+      .box { fill: #ffffff; stroke: #c5cbd3; stroke-width: 1.4; }
+      .app { fill: #f4f5f7; stroke: #c5cbd3; stroke-width: 1.4; }
+      .core { fill: #eef0fb; stroke: #4f4fd1; stroke-width: 1.6; }
+      .title { font-size: 15px; font-weight: 600; fill: #14171c; }
+      .text { font-size: 12.5px; fill: #4a5361; }
+      .small { font-size: 11.5px; fill: #616a76; }
+      .label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; fill: #616a76; }
+      .line { stroke: #5b6472; stroke-width: 1.5; fill: none; }
+      .dash { stroke: #5b6472; stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+    </style>
+  </defs>
+  <rect width="1000" height="560" fill="#ffffff"/>
+
+  <text class="label" x="30" y="34">THE APPS</text>
+  <text class="label" x="358" y="34">WHAT ARRIVES</text>
+  <text class="label" x="620" y="34">IN HINDSIGHT</text>
+
+  <!-- the apps -->
+  <rect class="app" x="30" y="48" width="230" height="86" rx="14"/>
+  <text class="title" x="48" y="76">Sayso</text>
+  <text class="text" x="48" y="98">a turn: words, plan, calls,</text>
+  <text class="text" x="48" y="116">and a log of when each happened</text>
+
+  <rect class="app" x="30" y="150" width="230" height="86" rx="14"/>
+  <text class="title" x="48" y="178">Flowboard</text>
+  <text class="text" x="48" y="200">the last run of a flow: blocks,</text>
+  <text class="text" x="48" y="218">times and data, never settings</text>
+
+  <rect class="app" x="30" y="252" width="230" height="86" rx="14"/>
+  <text class="title" x="48" y="280">Agent Desk</text>
+  <text class="text" x="48" y="302">a run and the events logged</text>
+  <text class="text" x="48" y="320">under it, on its owner's machine</text>
+
+  <rect class="app" x="30" y="392" width="230" height="86" rx="14"/>
+  <text class="title" x="48" y="420">GitHub bot</text>
+  <text class="text" x="48" y="442">the same program, on a schedule,</text>
+  <text class="text" x="48" y="460">its runs published as one file</text>
+
+  <!-- the ways in -->
+  <rect class="box" x="340" y="92" width="214" height="196" rx="14"/>
+  <text class="title" x="358" y="120">Open in Hindsight</text>
+  <text class="text" x="358" y="144">opens /open in a new tab</text>
+  <text class="text" x="358" y="164">/open says "ready"</text>
+  <text class="text" x="358" y="184">the app answers with</text>
+  <text class="text" x="358" y="204">postMessage, addressed to</text>
+  <text class="text" x="358" y="224">Hindsight's origin alone</text>
+  <text class="small" x="358" y="252">or, if blocked or silent for 5 s,</text>
+  <text class="small" x="358" y="270">a file dropped on /sources</text>
+
+  <rect class="box" x="340" y="392" width="214" height="86" rx="14"/>
+  <text class="title" x="358" y="420">The snapshot, read live</text>
+  <text class="text" x="358" y="442">a server route fetches the file,</text>
+  <text class="text" x="358" y="460">or uses a recorded copy and says so</text>
+
+  <!-- core -->
+  <rect class="core" x="620" y="92" width="350" height="76" rx="14"/>
+  <text class="title" x="638" y="120">receive.ts: the checks</text>
+  <text class="text" x="638" y="142">which page, which app it may send as,</text>
+  <text class="text" x="638" y="158">under 2 MB, format and version, shape</text>
+  <text class="small" x="970" y="186" text-anchor="end">anything else is refused, with the reason</text>
+
+  <rect class="core" x="620" y="198" width="350" height="76" rx="14"/>
+  <text class="title" x="638" y="226">One adapter for each app</text>
+  <text class="text" x="638" y="248">the app's own record  becomes  a Trace:</text>
+  <text class="text" x="638" y="264">spans with a start, a length and a kind</text>
+
+  <rect class="core" x="620" y="304" width="350" height="64" rx="14"/>
+  <text class="title" x="638" y="332">Store</text>
+  <text class="text" x="638" y="352">Redux and RTK Query; sent runs kept in the browser</text>
+
+  <rect class="box" x="620" y="398" width="168" height="96" rx="14"/>
+  <text class="title" x="636" y="424">Runs, Overview</text>
+  <text class="text" x="636" y="445">the list and its filters,</text>
+  <text class="text" x="636" y="461">four charts of every run</text>
+  <text class="text" x="636" y="477">added up</text>
+
+  <rect class="box" x="802" y="398" width="168" height="96" rx="14"/>
+  <text class="title" x="818" y="424">One run</text>
+  <text class="text" x="818" y="445">timeline, agent time,</text>
+  <text class="text" x="818" y="461">zoom, keys, playback,</text>
+  <text class="text" x="818" y="477">and the same as a table</text>
+
+  <!-- lines -->
+  <path class="line" d="M260 91 H300 V150 H340" marker-end="url(#arrow)"/>
+  <path class="line" d="M260 193 H340" marker-end="url(#arrow)"/>
+  <path class="line" d="M260 295 H300 V236 H340" marker-end="url(#arrow)"/>
+  <path class="line" d="M260 435 H340" marker-end="url(#arrow)"/>
+  <path class="line" d="M554 190 H586 V130 H620" marker-end="url(#arrow)"/>
+  <path class="line" d="M554 435 H586 V236 H620" marker-end="url(#arrow)"/>
+  <path class="line" d="M795 168 V198" marker-end="url(#arrow)"/>
+  <path class="line" d="M795 274 V304" marker-end="url(#arrow)"/>
+  <path class="line" d="M704 368 V398" marker-end="url(#arrow)"/>
+  <path class="line" d="M886 368 V398" marker-end="url(#arrow)"/>
+
+  <text class="small" x="30" y="530">No server holds a run. What an app sends stays in the visitor's browser.</text>
+</svg>
