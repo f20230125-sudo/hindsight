@@ -4,6 +4,7 @@ import { CircleAlert } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useMemo } from "react";
 import { FilterBar } from "@/components/runs/FilterBar";
+import { Button } from "@/components/ui";
 import { countsOf } from "@/stats/counts";
 import { useRuns } from "@/store/useRuns";
 import { applyFilters, filtersFromParams, hasFilters, paramsFromFilters, type Filters } from "@/trace/filters";
@@ -33,30 +34,27 @@ export function OverviewView() {
   );
 
   return (
-    <div className="flex flex-col gap-7">
-      <header className="flex max-w-[70ch] flex-col gap-3">
-        <p className="eyebrow">Overview</p>
-        <h1 className="text-[30px] font-semibold leading-tight tracking-tight sm:text-[36px]">Where the time went, across every run</h1>
-        <p className="text-[15.5px] leading-relaxed text-muted">
+    <div className="flex flex-col gap-6">
+      <header className="flex max-w-[64ch] flex-col gap-2.5">
+        <h1 className="page-title">Where the time went, across every run</h1>
+        <p className="text-[15.5px] leading-relaxed text-ink-2">
           What one run does is on its timeline. Here are all of them added up: how the time was spent, how the days went, how long runs take, and which steps were slowest.
         </p>
       </header>
 
       {errors.map((error) => (
-        <div key={error.what} role="alert" className="panel flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-[14px]">
+        <div key={error.what} role="alert" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-[14px]">
           <span className="flex items-center gap-2">
-            <CircleAlert size={16} className="shrink-0 text-bad" aria-hidden="true" />
+            <CircleAlert size={16} className="shrink-0 text-fail" aria-hidden="true" />
             {error.what} could not be read: {error.message}
           </span>
-          <button type="button" onClick={retry} className="rounded-lg border border-line px-3 py-1.5 text-[13px] font-medium hover:bg-surface-2">
-            Try again
-          </button>
+          <Button onClick={retry}>Try again</Button>
         </div>
       ))}
 
-      <section aria-label="Which runs to add up" className="flex flex-col gap-3">
+      <section aria-label="Which runs to add up" className="flex flex-col gap-2">
         <FilterBar filters={filters} counts={counts} onChange={change} />
-        <p role="status" className="text-[13px] text-muted">
+        <p role="status" className="text-[13px] text-ink-2">
           {loading && traces.length === 0
             ? "Reading the runs…"
             : hasFilters(filters)
@@ -65,12 +63,15 @@ export function OverviewView() {
         </p>
       </section>
 
-      <TimeShare traces={scoped} />
-      <div className="grid gap-7 lg:grid-cols-2">
-        <RunsPerDay traces={scoped} />
-        <DurationSpread traces={scoped} />
+      {/* Four plates, each a drawing with its table one switch away. */}
+      <div className="mt-4 flex flex-col gap-10">
+        <TimeShare traces={scoped} />
+        <div className="grid items-start gap-10 lg:grid-cols-2">
+          <RunsPerDay traces={scoped} />
+          <DurationSpread traces={scoped} />
+        </div>
+        <SlowestList traces={scoped} />
       </div>
-      <SlowestList traces={scoped} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui";
 import { KIND_LABELS, SPAN_STATUS_LABELS } from "@/timeline/look";
 import { formatMs, formatOffset } from "@/trace/format";
 import type { Trace } from "@/trace/schema";
@@ -22,7 +23,7 @@ export function SpanTable({ trace, selected, onSelect }: { trace: Trace; selecte
         <table className="w-full min-w-[560px] text-left text-[13px]">
           <caption className="sr-only">Every bar and mark of the run, in the order they began</caption>
           <thead>
-            <tr className="eyebrow border-b border-line">
+            <tr className="label border-b border-rule">
               <th scope="col" className="py-2 pr-3 font-medium">
                 Starts
               </th>
@@ -45,20 +46,20 @@ export function SpanTable({ trace, selected, onSelect }: { trace: Trace; selecte
               const Icon = KIND_ICONS[span.kind];
               const chosen = selected.length === 1 && selected[0] === span.id;
               return (
-                <tr key={span.id} className={`border-b border-line/70 ${chosen ? "bg-accent-soft" : "hover:bg-surface-2/60"}`}>
-                  <td className="tabular whitespace-nowrap py-2 pr-3 align-top text-muted">{formatOffset(span.startMs)}</td>
+                <tr key={span.id} className={`border-b border-rule ${chosen ? "bg-paper-2" : "hover:bg-paper-2"}`}>
+                  <td className="tabular whitespace-nowrap py-2 pr-3 align-top text-ink-2">{formatOffset(span.startMs)}</td>
                   <td className="tabular whitespace-nowrap px-3 py-2 text-right align-top">{span.durationMs > 0 ? formatMs(span.durationMs) : "a moment"}</td>
-                  <td className="whitespace-nowrap px-3 py-2 align-top text-muted">
+                  <td className="whitespace-nowrap px-3 py-2 align-top text-ink-2">
                     <span className="inline-flex items-center gap-1.5">
                       <Icon size={13} aria-hidden="true" />
                       {KIND_LABELS[span.kind]}
                     </span>
                   </td>
                   <td className="min-w-0 px-3 py-2 align-top">
-                    <button type="button" aria-pressed={chosen} onClick={() => onSelect([span.id])} className="break-words text-left font-medium hover:underline">
+                    <button type="button" aria-pressed={chosen} onClick={() => onSelect([span.id])} className="break-words text-left font-medium underline-offset-2 hover:underline">
                       {span.name}
                     </button>
-                    {span.timing === "estimated" ? <span className="ml-2 text-[12px] text-faint">worked out from the log</span> : null}
+                    {span.timing === "estimated" ? <span className="ml-2 text-[12.5px] text-ink-3">worked out from the log</span> : null}
                   </td>
                   <td className="whitespace-nowrap py-2 pl-3 align-top">{SPAN_STATUS_LABELS[span.status]}</td>
                 </tr>
@@ -68,9 +69,9 @@ export function SpanTable({ trace, selected, onSelect }: { trace: Trace; selecte
         </table>
       </div>
       {shown < spans.length ? (
-        <button type="button" onClick={() => setShown((count) => count + FIRST)} className="mt-3 rounded-lg border border-line bg-surface px-3 py-1.5 text-[13px] font-medium hover:bg-surface-2">
+        <Button onClick={() => setShown((count) => count + FIRST)} className="mt-3">
           Show {Math.min(FIRST, spans.length - shown)} more of {spans.length - shown}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

@@ -3,24 +3,22 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 // The few building blocks every screen shares.
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "outline" | "ghost" | "danger";
-  size?: "sm" | "md";
+  variant?: "primary" | "outline" | "ghost";
 };
 
+// A control is 6 px round. Selected and primary are filled with ink; the rest is
+// paper, with a border that can be found. On a phone every button is 44 px high.
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
-  primary: "bg-accent text-accent-fg hover:opacity-90",
-  outline: "border border-line bg-surface text-fg hover:bg-surface-2",
-  ghost: "text-muted hover:bg-surface-2 hover:text-fg",
-  danger: "text-bad hover:bg-surface-2",
+  primary: "bg-ink text-paper hover:bg-ink-2",
+  outline: "border border-edge bg-paper text-ink hover:bg-paper-2",
+  ghost: "text-ink-2 hover:bg-paper-2 hover:text-ink",
 };
 
-export function Button({ variant = "outline", size = "md", className = "", type = "button", ...rest }: ButtonProps) {
+export function Button({ variant = "outline", className = "", type = "button", ...rest }: ButtonProps) {
   return (
     <button
       type={type}
-      className={`inline-flex shrink-0 items-center justify-center gap-1.5 rounded-lg font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-        size === "sm" ? "h-7 px-2 text-xs" : "h-8 px-3 text-[13px]"
-      } ${VARIANTS[variant]} ${className}`}
+      className={`inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-control px-3.5 text-[13px] font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45 sm:h-9 ${VARIANTS[variant]} ${className}`}
       {...rest}
     />
   );
@@ -38,7 +36,7 @@ export function IconButton({ label, className = "", type = "button", children, .
       type={type}
       aria-label={label}
       title={label}
-      className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent ${className}`}
+      className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-ink-2 transition-colors duration-150 hover:bg-paper-2 hover:text-ink disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent aria-disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:hover:bg-transparent sm:h-8 sm:w-8 ${className}`}
       {...rest}
     >
       {children}
@@ -47,7 +45,5 @@ export function IconButton({ label, className = "", type = "button", children, .
 }
 
 export function Kbd({ children }: { children: ReactNode }) {
-  return (
-    <kbd className="rounded border border-line bg-surface-2 px-1.5 py-0.5 font-mono text-[11px] text-muted">{children}</kbd>
-  );
+  return <kbd className="rounded-bar border border-rule bg-paper-2 px-1.5 py-0.5 font-mono text-[12px] text-ink-2">{children}</kbd>;
 }

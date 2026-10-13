@@ -141,17 +141,22 @@ describe("the store", () => {
       ["The server answered 503.", async () => new Response("down", { status: 503 })],
       ["The server's answer was not in the shape Hindsight expects.", async () => new Response(JSON.stringify({ traces: [{ id: "broken" }] }))],
       [
-        "offline",
+        "The server could not be reached.",
         async () => {
           throw new TypeError("offline");
         },
       ],
     ];
+    // What went wrong is for the console; the page is given plain words.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     for (const [message, fetch] of cases) {
       const { store } = build({ fetch });
       const result = await store.dispatch(api.endpoints.githubBotRuns.initiate());
       expect(result.isError).toBe(true);
       expect(result.error).toEqual({ message });
     }
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][1])).toContain("offline");
+    warn.mockRestore();
   });
 });

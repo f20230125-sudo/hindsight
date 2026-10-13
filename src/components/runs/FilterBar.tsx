@@ -2,7 +2,7 @@
 
 import { Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { SOURCE_ICONS } from "@/components/timeline/kinds";
+import { Button } from "@/components/ui";
 import { TRACE_STATUS_LABELS } from "@/timeline/look";
 import { NO_FILTERS, hasFilters, toggled, type Filters } from "@/trace/filters";
 import { formatDate } from "@/trace/format";
@@ -21,34 +21,35 @@ type Props = {
   onChange: (next: Filters) => void;
 };
 
-function Chip({ pressed, empty, onClick, children }: { pressed: boolean; empty: boolean; onClick: () => void; children: React.ReactNode }) {
+// A filter is a label and its options in a row. An option is a bordered control on paper, so it reads as
+// something to press; the ones that are on are filled with ink.
+function Option({ pressed, empty, onClick, count, children }: { pressed: boolean; empty: boolean; onClick: () => void; count?: number; children: React.ReactNode }) {
   return (
     <button
       type="button"
       aria-pressed={pressed}
       onClick={onClick}
       // A choice with no runs behind it is greyed with the faint text colour, which is picked to
-      // pass the contrast minimum. Fading the whole chip would drop its text below it.
-      className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] transition-colors ${
-        pressed
-          ? "border-accent/50 bg-accent-soft text-accent"
-          : empty
-            ? "border-line bg-surface text-faint hover:bg-surface-2"
-            : "border-line bg-surface text-muted hover:bg-surface-2 hover:text-fg"
+      // pass the contrast minimum. Fading the whole option would drop its text below it.
+      className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control border px-2.5 text-[13px] font-medium transition-colors duration-150 sm:h-8 ${
+        pressed ? "border-ink bg-ink text-paper" : empty ? "border-edge bg-paper text-ink-3 hover:bg-paper-2" : "border-edge bg-paper text-ink-2 hover:bg-paper-2 hover:text-ink"
       }`}
     >
       {children}
+      {count === undefined ? null : <span className={`tabular text-[12.5px] font-normal ${pressed ? "text-paper" : "text-ink-3"}`}>{count}</span>}
     </button>
   );
 }
 
+// On a phone a group is one line that scrolls sideways; wider, its options wrap.
+// The padding leaves room for the focus ring, which the scrolling box would cut.
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div role="group" aria-label={label} className="flex flex-wrap items-center gap-2">
-      <span className="eyebrow mr-1" aria-hidden="true">
+    <div role="group" aria-label={label} className="flex items-center gap-2">
+      <span className="label w-14 shrink-0" aria-hidden="true">
         {label}
       </span>
-      {children}
+      <div className="-my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto py-1 pl-1 sm:m-0 sm:flex-wrap sm:overflow-visible sm:p-0">{children}</div>
     </div>
   );
 }
@@ -71,73 +72,66 @@ export function FilterBar({ filters, counts, onChange }: Props) {
   const statuses = TRACE_STATUSES.filter((status) => counts.statuses[status] > 0 || filters.statuses.includes(status));
 
   return (
-    <div className="flex flex-col gap-3" role="search" aria-label="Filter the runs">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+    <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-8" role="search" aria-label="Filter the runs">
+      <div className="flex min-w-0 flex-col gap-2">
         <Group label="App">
-          {SOURCES.map((source) => {
-            const Icon = SOURCE_ICONS[source];
-            return (
-              <Chip key={source} pressed={filters.sources.includes(source)} empty={counts.sources[source] === 0} onClick={() => onChange({ ...filters, sources: toggled(filters.sources, source) })}>
-                <Icon size={14} aria-hidden="true" />
-                {SOURCE_LABELS[source]}
-                <span className="tabular text-[12px] text-faint">{counts.sources[source]}</span>
-              </Chip>
-            );
-          })}
+          {SOURCES.map((source) => (
+            <Option key={source} pressed={filters.sources.includes(source)} empty={counts.sources[source] === 0} count={counts.sources[source]} onClick={() => onChange({ ...filters, sources: toggled(filters.sources, source) })}>
+              {SOURCE_LABELS[source]}
+            </Option>
+          ))}
         </Group>
         <Group label="Result">
           {statuses.map((status) => (
-            <Chip key={status} pressed={filters.statuses.includes(status)} empty={counts.statuses[status] === 0} onClick={() => onChange({ ...filters, statuses: toggled(filters.statuses, status) })}>
+            <Option key={status} pressed={filters.statuses.includes(status)} empty={counts.statuses[status] === 0} count={counts.statuses[status]} onClick={() => onChange({ ...filters, statuses: toggled(filters.statuses, status) })}>
               {TRACE_STATUS_LABELS[status]}
-              <span className="tabular text-[12px] text-faint">{counts.statuses[status]}</span>
-            </Chip>
+            </Option>
           ))}
         </Group>
         {filters.day ? (
           <Group label="Day">
-            <Chip pressed empty={false} onClick={() => onChange({ ...filters, day: null })}>
+            <Option pressed empty={false} onClick={() => onChange({ ...filters, day: null })}>
               {formatDate(`${filters.day}T12:00:00`)}
               <X size={13} aria-hidden="true" />
               <span className="sr-only">Remove this filter</span>
-            </Chip>
+            </Option>
           </Group>
         ) : null}
         {agents.length > 0 ? (
           <Group label="Agent">
             {agents.map((agent) => (
-              <Chip key={agent} pressed={filters.agents.includes(agent)} empty={false} onClick={() => onChange({ ...filters, agents: toggled(filters.agents, agent) })}>
+              <Option key={agent} pressed={filters.agents.includes(agent)} empty={false} count={counts.agents[agent]} onClick={() => onChange({ ...filters, agents: toggled(filters.agents, agent) })}>
                 {agent}
-                <span className="tabular text-[12px] text-faint">{counts.agents[agent]}</span>
-              </Chip>
+              </Option>
             ))}
           </Group>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="ring-within relative flex h-9 w-full max-w-[360px] items-center gap-2 rounded-lg border border-line bg-surface px-3">
-          <Search size={15} className="shrink-0 text-faint" aria-hidden="true" />
+      <div className="flex flex-wrap items-center gap-2">
+        {/* The search sits on paper, so its edge is found against the desk. */}
+        <label className="ring-within relative flex h-11 w-full items-center gap-2 rounded-control border border-edge bg-paper px-3 sm:h-9 sm:w-[340px]">
+          <Search size={15} className="shrink-0 text-ink-3" aria-hidden="true" />
           <span className="sr-only">Search the runs</span>
           <input
             type="search"
             value={text}
             onChange={(event) => setText(event.target.value)}
             placeholder="Search by title, summary or agent"
-            className="ring-on-parent min-w-0 flex-1 bg-transparent text-[14px] placeholder:text-faint focus:outline-none"
+            className="ring-on-parent h-full min-w-0 flex-1 bg-transparent text-[14px] placeholder:text-ink-3 focus:outline-none"
           />
         </label>
         {hasFilters(filters) ? (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
             onClick={() => {
               setText("");
               onChange(NO_FILTERS);
             }}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[13px] text-muted hover:bg-surface-2 hover:text-fg"
           >
             <X size={14} aria-hidden="true" />
             Clear filters
-          </button>
+          </Button>
         ) : null}
       </div>
     </div>

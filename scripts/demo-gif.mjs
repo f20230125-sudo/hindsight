@@ -21,14 +21,14 @@ const VIEW = { width: 1180, height: 720 };
 function overlay() {
   const layer = document.createElement("div");
   layer.setAttribute("aria-hidden", "true");
-  layer.style.cssText = "position:fixed;inset:0;z-index:2147483647;pointer-events:none;font-family:ui-sans-serif,system-ui,sans-serif";
+  layer.style.cssText = "position:fixed;inset:0;z-index:2147483647;pointer-events:none;font-family:var(--font-headline),system-ui,sans-serif";
   layer.innerHTML = `
     <div id="demo-caption" style="position:absolute;left:50%;top:70px;transform:translateX(-50%);padding:8px 16px;
-      border-radius:12px;background:rgba(20,23,28,.96);color:#f3f5f8;font-size:15px;
-      font-weight:500;white-space:nowrap;box-shadow:0 10px 30px rgba(16,24,40,.25);display:none"></div>
+      border-radius:6px;background:#141925;color:#e9ecf2;font-size:15px;
+      font-weight:500;white-space:nowrap;box-shadow:0 6px 16px rgba(20,25,37,.14);display:none"></div>
     <div id="demo-pointer" style="position:absolute;left:0;top:0;width:24px;height:24px;margin:-2px 0 0 -4px">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 30"><path d="M5 3 L5 24 L11 18.5 L15 27 L19 25 L15 16.8 L23 16.8 Z"
-        fill="#14171c" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
+        fill="#141925" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg>
     </div>`;
   document.body.appendChild(layer);
   const pointer = document.getElementById("demo-pointer");

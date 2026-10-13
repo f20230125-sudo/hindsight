@@ -1,6 +1,7 @@
 "use client";
 
 import { Pause, Play } from "lucide-react";
+import { Button } from "@/components/ui";
 import { formatMs } from "@/trace/format";
 
 // Plays a run back: a button, and a slider along the whole of it. The slider is
@@ -19,14 +20,10 @@ export function Player({ durationMs, at, playing, onPlay, onPause, onMove }: Pro
   const here = at ?? 0;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2" role="group" aria-label="Play the run back">
-      <button
-        type="button"
-        onClick={playing ? onPause : onPlay}
-        className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 text-[13px] font-medium text-accent-fg hover:opacity-90"
-      >
+      <Button variant="primary" onClick={playing ? onPause : onPlay}>
         {playing ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
         {playing ? "Pause" : at !== null && at >= durationMs ? "Play again" : "Play"}
-      </button>
+      </Button>
       <input
         type="range"
         aria-label="Moment in the run"
@@ -36,9 +33,9 @@ export function Player({ durationMs, at, playing, onPlay, onPause, onMove }: Pro
         step={1}
         value={here}
         onChange={(event) => onMove(Number(event.target.value))}
-        className="h-2 min-w-[8rem] flex-1 cursor-pointer accent-[var(--accent)]"
+        className="h-6 min-w-[8rem] flex-1 cursor-pointer accent-ink"
       />
-      <span className="tabular w-full shrink-0 text-[12px] text-muted sm:w-[8.5rem] sm:text-right">
+      <span className="tabular w-full shrink-0 text-[12.5px] text-ink-2 sm:w-[8.5rem] sm:text-right">
         {at === null ? "Not playing" : `${formatMs(here)} of ${formatMs(durationMs)}`}
       </span>
     </div>

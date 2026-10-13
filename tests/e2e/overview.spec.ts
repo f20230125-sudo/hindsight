@@ -19,6 +19,20 @@ test("shows four charts of every run, each with its table", async ({ page }) => 
   }
 });
 
+test("fits a phone, with every chart shown as a table", async ({ page }) => {
+  // A table wider than its plate used to push the whole page wider (the plate was a grid item that could not shrink).
+  await page.setViewportSize({ width: 390, height: 800 });
+  await open(page);
+  for (const name of ["Where the time goes", "Runs by day", "How long runs take", "The slowest steps"]) {
+    await chart(page, name).getByRole("button", { name: "table" }).click();
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  // A table that scrolls inside its plate can be reached with the keyboard.
+  const scrolling = chart(page, "Runs by day").getByRole("group", { name: "Runs by day, as a table" });
+  await scrolling.focus();
+  await expect(scrolling).toBeFocused();
+});
+
 test.describe("where the time goes", () => {
   test("says what each app spent its time on", async ({ page }) => {
     await open(page);

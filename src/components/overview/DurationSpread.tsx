@@ -20,12 +20,13 @@ const SPREAD = 3;
 /** The order lines are tried in: the middle first, then out either side. */
 const LINES = [0, 1, -1, 2, -2, 3, -3];
 
+// Ink, not a colour: a dot is a run, and a run is not a kind of time. Filled succeeded, a ring waiting, a red diamond failed, an amber square stopped.
 const SHAPE: Record<TraceStatus, string> = {
-  ok: "rounded-full bg-series",
-  failed: "rotate-45 rounded-[2px] bg-bad",
-  stopped: "rounded-[2px] bg-warn",
-  waiting: "rounded-full border-2 border-series bg-surface",
-  running: "rounded-full border-2 border-series bg-surface",
+  ok: "rounded-full bg-ink",
+  failed: "rotate-45 rounded-bar bg-fail",
+  stopped: "rounded-bar bg-stopped",
+  waiting: "rounded-full border-2 border-ink bg-paper",
+  running: "rounded-full border-2 border-ink bg-paper",
 };
 
 type Dot = { trace: Trace; at: number; line: number };
@@ -79,10 +80,10 @@ export function DurationSpread({ traces }: { traces: Trace[] }) {
       }
     >
       {rows.length === 0 ? (
-        <p className="text-[14px] text-muted">No runs to place.</p>
+        <p className="text-[14px] text-ink-2">No runs to place.</p>
       ) : (
         <>
-          <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-muted" aria-label="What the shapes mean">
+          <ul className="mb-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px] text-ink-2" aria-label="What the shapes mean">
             {(["ok", "failed", "stopped"] as const).map((status) => (
               <li key={status} className="flex items-center gap-1.5">
                 <span className={`inline-block h-2.5 w-2.5 ${SHAPE[status]}`} aria-hidden="true" />
@@ -90,42 +91,42 @@ export function DurationSpread({ traces }: { traces: Trace[] }) {
               </li>
             ))}
             <li className="flex items-center gap-1.5">
-              <span className="inline-block h-0.5 w-3.5 bg-fg/60" aria-hidden="true" />
+              <span className="inline-block h-0.5 w-3.5 bg-ink-2" aria-hidden="true" />
               The middle run
             </li>
           </ul>
           <div className="relative">
-            <div className="pointer-events-none absolute inset-y-0 right-0 hidden sm:block" style={{ left: "11rem" }} aria-hidden="true">
+            <div className="pointer-events-none absolute inset-y-0 right-0 hidden sm:block" style={{ left: "var(--gutter)" }} aria-hidden="true">
               {ticks.map((tick) => (
-                <span key={tick} className="absolute inset-y-0 w-px bg-line" style={{ left: `${position(tick) * 100}%` }} />
+                <span key={tick} className="absolute inset-y-0 w-px bg-rule" style={{ left: `${position(tick) * 100}%` }} />
               ))}
             </div>
             <ul className="relative flex flex-col gap-3">
               {rows.map((row) => (
-                <li key={row.source} className="grid gap-x-4 gap-y-1 sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-center">
+                <li key={row.source} className="grid gap-x-4 gap-y-1 sm:grid-cols-[var(--gutter)_minmax(0,1fr)] sm:items-center">
                   <div>
                     <SourceChip source={row.source} />
-                    <p className="text-[12px] text-faint">
+                    <p className="text-[12.5px] text-ink-3">
                       {plural(row.runs.length, "run")}, middle {formatMs(row.median)}
                     </p>
                   </div>
                   <ul aria-label={`${SOURCE_LABELS[row.source]}, each run`} className="relative" style={{ height: (2 * row.reach + 1) * LANE_PX + 6 }}>
-                    <li aria-hidden="true" className="absolute w-0.5 -translate-x-1/2 bg-fg/60" style={{ left: `${position(row.median) * 100}%`, top: 0, bottom: 0 }} />
+                    <li aria-hidden="true" className="absolute w-0.5 -translate-x-1/2 bg-ink-2" style={{ left: `${position(row.median) * 100}%`, top: 0, bottom: 0 }} />
                     {row.dots.map(({ trace, at, line }) => (
                       <li key={trace.id} className="group absolute -translate-x-1/2" style={{ left: `${at * 100}%`, top: (line + row.reach) * LANE_PX + 5 }}>
                         <Link
                           href={`/runs/${encodeURIComponent(trace.id)}`}
                           aria-label={`${trace.title}, ${formatMs(trace.durationMs)}, ${TRACE_STATUS_LABELS[trace.status].toLowerCase()}`}
-                          className={`relative block h-3 w-3 ring-2 ring-surface before:absolute before:-inset-1.5 before:content-[''] ${SHAPE[trace.status]}`}
+                          className={`relative block h-3 w-3 ring-2 ring-paper before:absolute before:-inset-1.5 before:content-[''] ${SHAPE[trace.status]}`}
                         />
                         <span
                           role="tooltip"
-                          className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[240px] -translate-x-1/2 rounded-lg border border-line bg-surface px-2.5 py-2 text-left shadow-lift group-focus-within:block group-hover:block ${
+                          className={`pointer-events-none absolute bottom-full z-20 mb-2 hidden w-max max-w-[240px] -translate-x-1/2 rounded-control border border-rule bg-paper px-2.5 py-2 text-left shadow-tip group-focus-within:block group-hover:block ${
                             at > 0.85 ? "-translate-x-[85%]" : at < 0.15 ? "-translate-x-[15%]" : ""
                           }`}
                         >
                           <span className="tabular block text-[13px] font-semibold">{formatMs(trace.durationMs)}</span>
-                          <span className="block break-words text-[12px] text-fg">{trace.title}</span>
+                          <span className="block break-words text-[12.5px] text-ink">{trace.title}</span>
                         </span>
                       </li>
                     ))}
@@ -133,9 +134,9 @@ export function DurationSpread({ traces }: { traces: Trace[] }) {
                 </li>
               ))}
             </ul>
-            <div className="mt-2 grid sm:grid-cols-[11rem_minmax(0,1fr)]" aria-hidden="true">
+            <div className="mt-2 grid sm:grid-cols-[var(--gutter)_minmax(0,1fr)]" aria-hidden="true">
               <span />
-              <div className="relative h-4 text-[11px] text-faint">
+              <div className="relative h-4 text-[11px] text-ink-3">
                 {ticks.map((tick) => (
                   <span
                     key={tick}

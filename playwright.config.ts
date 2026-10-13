@@ -19,6 +19,10 @@ export default defineConfig({
     // Times are shown in the visitor's own zone. One fixed zone keeps a test
     // the same on a laptop in Dubai and on a CI machine in UTC.
     timezoneId: "Asia/Dubai",
+    // A run draws itself in when it opens, and bars glide when the clock changes. The tests measure
+    // bars right after pressing a button, so they run with that motion reduced; motion.spec.ts
+    // turns it back on to test the motion itself.
+    reducedMotion: "reduce",
   },
   projects: [
     {

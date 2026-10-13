@@ -166,6 +166,57 @@ test.describe("the keyboard", () => {
   });
 });
 
+test.describe("the keys are not lost", () => {
+  test("when zooming takes the bar they were on off the track", async ({ page }) => {
+    await openRun(page, AUDIT_PATH);
+    const first = bar(page, /^GET \/user\/repos\. API call/);
+    await first.focus();
+    await page.keyboard.press("+");
+    await expect(page).toHaveURL(/from=/);
+    // The first call is at the very start of an eight-second run: it is off the track now.
+    await expect(first).toHaveCount(0);
+    // The keys are still in the timeline, on the nearest thing that is on show, and still work.
+    await expect(timeline(page).locator(":focus")).toHaveCount(1);
+    await page.keyboard.press("ArrowDown");
+    await expect(timeline(page).locator(":focus")).toHaveCount(1);
+    await page.keyboard.press("-");
+    await expect(page).not.toHaveURL(/from=/);
+    await expect(timeline(page).locator(":focus")).toHaveCount(1);
+  });
+
+  test("when a control has nothing left to do", async ({ page }) => {
+    await openRun(page, AUDIT_PATH);
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    const all = page.getByRole("button", { name: "Show all of the run" });
+    await all.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).not.toHaveURL(/from=/);
+    // It is dimmed and says so, but it is not disabled, so the keyboard is still on it.
+    await expect(all).toHaveAttribute("aria-disabled", "true");
+    await expect(all).toBeFocused();
+    // Pressing it again does nothing.
+    await page.keyboard.press("Enter");
+    await expect(all).toBeFocused();
+  });
+});
+
+test.describe("on a phone", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test("pressing a bar brings what it is into view", async ({ page }) => {
+    await openRun(page, SAYSO_PATH);
+    await bar(page, QUOTE).click();
+    // The panel is under the timeline; it is scrolled to, so the press is seen to have done something.
+    await expect(detail(page).getByText("POST /api/quotes").first()).toBeInViewport();
+  });
+
+  test("pressing Play brings what is going on into view", async ({ page }) => {
+    await openRun(page, SAYSO_PATH);
+    await page.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(detail(page).getByText("At this moment").first()).toBeInViewport();
+  });
+});
+
 test.describe("playing a run back", () => {
   test("shows what was going on, and what the person had been shown, at a moment", async ({ page }) => {
     await openRun(page, SAYSO_PATH);
